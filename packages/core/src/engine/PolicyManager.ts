@@ -5,6 +5,16 @@ import type { Policy } from '@sapper-ai/types'
 import { parse as parseYaml } from 'yaml'
 import { z } from 'zod'
 
+const MatchListSchema = z
+  .object({
+    toolNames: z.array(z.string()).optional(),
+    urlPatterns: z.array(z.string()).optional(),
+    contentPatterns: z.array(z.string()).optional(),
+    packageNames: z.array(z.string()).optional(),
+    sha256: z.array(z.string()).optional(),
+  })
+  .optional()
+
 const GuardActionSchema = z.enum(['allow', 'block'])
 
 const ThresholdSchema = z
@@ -23,6 +33,17 @@ const ToolPolicySchema = z.object({
       riskThreshold: z.number().min(0).max(1).optional(),
     })
     .optional(),
+  allowlist: MatchListSchema,
+  blocklist: MatchListSchema,
+})
+
+const ThreatFeedSchema = z.object({
+  enabled: z.boolean().optional(),
+  sources: z.array(z.string()).optional(),
+  ttlMinutes: z.number().int().positive().optional(),
+  autoSync: z.boolean().optional(),
+  failOpen: z.boolean().optional(),
+  cachePath: z.string().optional(),
 })
 
 const LlmConfigSchema = z.object({
@@ -39,6 +60,9 @@ const PolicySchema = z.object({
   detectors: z.array(z.string()).optional(),
   thresholds: ThresholdSchema,
   toolOverrides: z.record(z.string(), ToolPolicySchema).optional(),
+  allowlist: MatchListSchema,
+  blocklist: MatchListSchema,
+  threatFeed: ThreatFeedSchema.optional(),
   llm: LlmConfigSchema.optional(),
 })
 
@@ -48,12 +72,59 @@ type ExtendedPolicy = Policy & {
     riskThreshold?: number
     blockMinConfidence?: number
   }
+  allowlist?: {
+    toolNames?: string[]
+    urlPatterns?: string[]
+    contentPatterns?: string[]
+    packageNames?: string[]
+    sha256?: string[]
+  }
+  blocklist?: {
+    toolNames?: string[]
+    urlPatterns?: string[]
+    contentPatterns?: string[]
+    packageNames?: string[]
+    sha256?: string[]
+  }
+}
+
+type ExtendedToolPolicy = NonNullable<Policy['toolOverrides']>[string] & {
+  allowlist?: ExtendedPolicy['allowlist']
+  blocklist?: ExtendedPolicy['blocklist']
+}
+
+function mergeUnique(left: string[] | undefined, right: string[] | undefined): string[] | undefined {
+  const values = [...(left ?? []), ...(right ?? [])]
+  if (values.length === 0) {
+    return undefined
+  }
+
+  return Array.from(new Set(values))
+}
+
+function mergeMatchList(
+  base: ExtendedPolicy['allowlist'] | undefined,
+  override: ExtendedPolicy['allowlist'] | undefined
+): ExtendedPolicy['allowlist'] | undefined {
+  const merged = {
+    toolNames: mergeUnique(base?.toolNames, override?.toolNames),
+    urlPatterns: mergeUnique(base?.urlPatterns, override?.urlPatterns),
+    contentPatterns: mergeUnique(base?.contentPatterns, override?.contentPatterns),
+    packageNames: mergeUnique(base?.packageNames, override?.packageNames),
+    sha256: mergeUnique(base?.sha256, override?.sha256),
+  }
+
+  if (!merged.toolNames && !merged.urlPatterns && !merged.contentPatterns && !merged.packageNames && !merged.sha256) {
+    return undefined
+  }
+
+  return merged
 }
 
 export class PolicyManager {
   resolvePolicy(toolName: string, basePolicy: Policy): Policy {
     const extendedBase = basePolicy as ExtendedPolicy
-    const toolOverride = basePolicy.toolOverrides?.[toolName]
+    const toolOverride = basePolicy.toolOverrides?.[toolName] as ExtendedToolPolicy | undefined
 
     if (!toolOverride) {
       return { ...basePolicy }
@@ -74,6 +145,14 @@ export class PolicyManager {
         ...(extendedBase.thresholds ?? {}),
         ...(toolOverride.thresholds ?? {}),
       }
+    }
+
+    if (extendedBase.allowlist || toolOverride.allowlist) {
+      merged.allowlist = mergeMatchList(extendedBase.allowlist, toolOverride.allowlist)
+    }
+
+    if (extendedBase.blocklist || toolOverride.blocklist) {
+      merged.blocklist = mergeMatchList(extendedBase.blocklist, toolOverride.blocklist)
     }
 
     return merged

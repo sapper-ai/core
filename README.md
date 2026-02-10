@@ -53,7 +53,14 @@ Detection Pipeline:
 pnpm add @sapper-ai/mcp
 
 # Wrap any MCP server
-sapperai-proxy --target "npx @modelcontextprotocol/server-example"
+sapperai-proxy -- npx @modelcontextprotocol/server-example
+
+# Watch local skill/plugin installs and auto-quarantine blocked files
+sapperai-proxy watch
+
+# Inspect or restore quarantine
+sapperai-proxy quarantine list
+sapperai-proxy quarantine restore <id>
 ```
 
 ### Option 2: OpenAI Agents Integration

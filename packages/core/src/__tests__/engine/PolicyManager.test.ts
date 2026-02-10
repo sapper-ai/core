@@ -122,4 +122,38 @@ describe('PolicyManager', () => {
     expect(policy.toolOverrides?.shell?.mode).toBe('monitor')
     expect(policy.toolOverrides?.shell?.thresholds?.blockMinConfidence).toBe(0.8)
   })
+
+  it('merges allowlist and blocklist from tool override', () => {
+    const manager = new PolicyManager()
+    const resolved = manager.resolvePolicy(
+      'echo',
+      {
+        ...policyBase,
+        allowlist: {
+          toolNames: ['safe-global'],
+        },
+        blocklist: {
+          contentPatterns: ['global-pattern'],
+        },
+        toolOverrides: {
+          echo: {
+            allowlist: {
+              toolNames: ['echo'],
+            },
+            blocklist: {
+              contentPatterns: ['echo-pattern'],
+            },
+          },
+        },
+      } as Policy
+    ) as Policy & {
+      allowlist?: { toolNames?: string[] }
+      blocklist?: { contentPatterns?: string[] }
+    }
+
+    expect(resolved.allowlist?.toolNames).toContain('echo')
+    expect(resolved.allowlist?.toolNames).toContain('safe-global')
+    expect(resolved.blocklist?.contentPatterns).toContain('global-pattern')
+    expect(resolved.blocklist?.contentPatterns).toContain('echo-pattern')
+  })
 })

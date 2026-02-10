@@ -8,6 +8,9 @@ import {
   DetectorOutput,
   Decision,
   ToolPolicy,
+  MatchList,
+  ThreatFeedConfig,
+  ToolMetadata,
   LlmConfig,
   Policy,
   AuditLogEntry,
@@ -64,6 +67,7 @@ describe('Types', () => {
     };
     expectTypeOf(ctx.toolCall).toEqualTypeOf<ToolCall | undefined>();
     expectTypeOf(ctx.toolResult).toEqualTypeOf<ToolResult | undefined>();
+    expectTypeOf(ctx.toolMetadata).toEqualTypeOf<ToolMetadata | undefined>();
   });
 
   it('Detector should have required id and methods', () => {
@@ -113,8 +117,10 @@ describe('Types', () => {
     expectTypeOf(tp.mode).toEqualTypeOf<'monitor' | 'enforce' | undefined>();
     expectTypeOf(tp.detectors).toEqualTypeOf<string[] | undefined>();
     expectTypeOf(tp.thresholds).toEqualTypeOf<
-      { blockMinConfidence?: number } | undefined
+      { riskThreshold?: number; blockMinConfidence?: number } | undefined
     >();
+    expectTypeOf(tp.allowlist).toEqualTypeOf<MatchList | undefined>();
+    expectTypeOf(tp.blocklist).toEqualTypeOf<MatchList | undefined>();
   });
 
   it('LlmConfig should have required provider', () => {
@@ -147,6 +153,13 @@ describe('Types', () => {
     expectTypeOf(policy.toolOverrides).toEqualTypeOf<
       Record<string, ToolPolicy> | undefined
     >();
+    expectTypeOf(policy.detectors).toEqualTypeOf<string[] | undefined>();
+    expectTypeOf(policy.thresholds).toEqualTypeOf<
+      { riskThreshold?: number; blockMinConfidence?: number } | undefined
+    >();
+    expectTypeOf(policy.allowlist).toEqualTypeOf<MatchList | undefined>();
+    expectTypeOf(policy.blocklist).toEqualTypeOf<MatchList | undefined>();
+    expectTypeOf(policy.threatFeed).toEqualTypeOf<ThreatFeedConfig | undefined>();
     expectTypeOf(policy.llm).toEqualTypeOf<LlmConfig | undefined>();
   });
 

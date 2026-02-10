@@ -3,12 +3,16 @@ import { ReadBuffer, serializeMessage } from '@modelcontextprotocol/sdk/shared/s
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   AuditLogger,
+  buildMatchListFromIntel,
   DecisionEngine,
+  evaluatePolicyMatch,
   Guard,
   LlmDetector,
   PolicyManager,
   RulesDetector,
   Scanner,
+  ThreatIntelDetector,
+  ThreatIntelStore,
 } from '@sapper-ai/core'
 import type {
   AssessmentContext,
@@ -53,6 +57,27 @@ interface ProxyTransport {
 
 interface ExtendedPolicy extends Policy {
   detectors?: string[]
+  allowlist?: {
+    toolNames?: string[]
+    urlPatterns?: string[]
+    contentPatterns?: string[]
+    packageNames?: string[]
+    sha256?: string[]
+  }
+  blocklist?: {
+    toolNames?: string[]
+    urlPatterns?: string[]
+    contentPatterns?: string[]
+    packageNames?: string[]
+    sha256?: string[]
+  }
+  threatFeed?: {
+    enabled?: boolean
+    sources?: string[]
+    autoSync?: boolean
+    failOpen?: boolean
+    cachePath?: string
+  }
 }
 
 type GuardKind = 'pre_tool_call' | 'post_tool_result'
@@ -71,6 +96,7 @@ interface StdioSecurityProxyOptions {
   policyManager?: PolicyManager
   scanner?: Scanner
   auditLogger?: AuditLoggerLike
+  threatIntelStore?: ThreatIntelStore
 }
 
 const BLOCKED_ERROR_CODE = -32010
@@ -83,6 +109,18 @@ export class StdioSecurityProxy {
   private readonly scanner: Scanner
   private readonly auditLogger: AuditLoggerLike
   private readonly detectors?: Detector[]
+  private readonly threatIntelStore: ThreatIntelStore
+
+  private threatIntelEntries: Array<{
+    id: string
+    type: 'toolName' | 'packageName' | 'urlPattern' | 'contentPattern' | 'sha256'
+    value: string
+    reason: string
+    severity: 'low' | 'medium' | 'high' | 'critical'
+    source: string
+    addedAt: string
+    expiresAt?: string
+  }> = []
 
   private readonly pendingToolCalls = new Map<string, ToolCall>()
   private readonly pendingToolLists = new Set<string>()
@@ -95,6 +133,7 @@ export class StdioSecurityProxy {
     this.policyManager = options.policyManager ?? new PolicyManager()
     this.scanner = options.scanner ?? new Scanner()
     this.detectors = options.detectors
+    this.threatIntelStore = options.threatIntelStore ?? new ThreatIntelStore({ cachePath: process.env.SAPPERAI_THREAT_FEED_CACHE })
 
     this.auditLogger =
       options.auditLogger ?? new AuditLogger({ filePath: process.env.SAPPERAI_AUDIT_LOG_PATH ?? '/tmp/sapperai-proxy.audit.log' })
@@ -112,18 +151,20 @@ export class StdioSecurityProxy {
 
     this.started = true
 
+    await this.loadThreatIntel()
+
     this.downstreamTransport.onmessage = (message) => {
       void this.handleDownstreamMessage(message as JsonRpcMessage)
     }
     this.downstreamTransport.onerror = (error) => {
-      this.upstreamTransport.onerror?.(error)
+      console.error(`[SapperAI] downstream error: ${error.message}`)
     }
 
     this.upstreamTransport.onmessage = (message) => {
       void this.handleUpstreamMessage(message as JsonRpcMessage)
     }
     this.upstreamTransport.onerror = (error) => {
-      this.downstreamTransport.onerror?.(error)
+      console.error(`[SapperAI] upstream error: ${error.message}`)
     }
 
     await Promise.all([this.downstreamTransport.start(), this.upstreamTransport.start()])
@@ -176,6 +217,23 @@ export class StdioSecurityProxy {
 
       const toolCall = this.toToolCall(message)
       if (!toolCall || message.id === undefined) {
+        await this.forwardToUpstream(message)
+        return
+      }
+
+      const policy = this.resolvePolicy(toolCall.toolName)
+      const preMatch = this.matchPolicy(policy, {
+        toolName: toolCall.toolName,
+        toolCall,
+        metadata: this.toToolMetadataFromRecord(toolCall.meta),
+      })
+      if (preMatch.action === 'block' && policy.mode === 'enforce') {
+        await this.forwardToDownstream(this.createBlockedResponse(message.id, 'pre_tool_call', preMatch.reasons))
+        return
+      }
+
+      if (preMatch.action === 'allow') {
+        this.pendingToolCalls.set(this.toRequestKey(message.id), toolCall)
         await this.forwardToUpstream(message)
         return
       }
@@ -244,6 +302,26 @@ export class StdioSecurityProxy {
       const toolName = rawTool.name
       const description = typeof rawTool.description === 'string' ? rawTool.description : ''
       const policy = this.resolvePolicy(toolName)
+      const installMatch = this.matchPolicy(policy, {
+        toolName,
+        content: description,
+        metadata: {
+          name: toolName,
+          packageName: typeof rawTool.packageName === 'string' ? rawTool.packageName : undefined,
+          sourceUrl: typeof rawTool.url === 'string' ? rawTool.url : undefined,
+          sha256: typeof rawTool.sha256 === 'string' ? rawTool.sha256 : undefined,
+        },
+      })
+
+      if (installMatch.action === 'block' && policy.mode === 'enforce') {
+        continue
+      }
+
+      if (installMatch.action === 'allow') {
+        nextTools.push(rawTool)
+        continue
+      }
+
       const decision = await this.scanToolDescription(toolName, description, policy)
 
       if (decision.action === 'block' && policy.mode === 'enforce') {
@@ -279,6 +357,22 @@ export class StdioSecurityProxy {
     }
 
     const toolResult = this.toToolResult(message.result)
+    const policy = this.resolvePolicy(toolCall.toolName)
+    const postMatch = this.matchPolicy(policy, {
+      toolName: toolCall.toolName,
+      toolCall,
+      toolResult,
+      metadata: this.toToolMetadataFromRecord(toolResult.meta),
+    })
+
+    if (postMatch.action === 'block' && policy.mode === 'enforce') {
+      return this.createBlockedResponse(message.id, 'post_tool_result', postMatch.reasons)
+    }
+
+    if (postMatch.action === 'allow') {
+      return message
+    }
+
     const postDecision = await this.runGuard('post_tool_result', toolCall, toolResult)
 
     if (postDecision.action === 'block') {
@@ -359,6 +453,10 @@ export class StdioSecurityProxy {
     const detectorNames = (policy as ExtendedPolicy).detectors ?? ['rules']
     const detectors: Detector[] = []
 
+    if (this.threatIntelEntries.length > 0) {
+      detectors.push(new ThreatIntelDetector(this.threatIntelEntries))
+    }
+
     for (const detectorName of detectorNames) {
       if (detectorName === 'rules') {
         detectors.push(new RulesDetector())
@@ -392,6 +490,7 @@ export class StdioSecurityProxy {
     return {
       toolName: message.params.name,
       arguments: message.params.arguments ?? {},
+      meta: this.isRecord(message.params.meta) ? message.params.meta : undefined,
     }
   }
 
@@ -420,6 +519,116 @@ export class StdioSecurityProxy {
           reasons,
         },
       },
+    }
+  }
+
+  private toToolMetadataFromRecord(meta: unknown): {
+    name?: string
+    packageName?: string
+    sourceUrl?: string
+    sha256?: string
+    version?: string
+    ecosystem?: string
+  } | undefined {
+    if (!this.isRecord(meta)) {
+      return undefined
+    }
+
+    return {
+      name: typeof meta.name === 'string' ? meta.name : undefined,
+      packageName: typeof meta.packageName === 'string' ? meta.packageName : undefined,
+      sourceUrl: typeof meta.sourceUrl === 'string' ? meta.sourceUrl : typeof meta.url === 'string' ? meta.url : undefined,
+      sha256: typeof meta.sha256 === 'string' ? meta.sha256 : undefined,
+      version: typeof meta.version === 'string' ? meta.version : undefined,
+      ecosystem: typeof meta.ecosystem === 'string' ? meta.ecosystem : undefined,
+    }
+  }
+
+  private matchPolicy(
+    policy: Policy,
+    subject: {
+      toolName?: string
+      content?: string
+      metadata?: {
+        name?: string
+        packageName?: string
+        sourceUrl?: string
+        sha256?: string
+        version?: string
+        ecosystem?: string
+      }
+      toolCall?: ToolCall
+      toolResult?: ToolResult
+      fileHash?: string
+    }
+  ): { action: 'allow' | 'block' | 'none'; reasons: string[] } {
+    const policyWithIntel = this.withThreatIntel(policy)
+    return evaluatePolicyMatch(policyWithIntel, subject)
+  }
+
+  private withThreatIntel(policy: Policy): Policy {
+    if (this.threatIntelEntries.length === 0) {
+      return policy
+    }
+
+    const extended = policy as ExtendedPolicy
+    const intelBlocklist = buildMatchListFromIntel(this.threatIntelEntries)
+
+    return {
+      ...extended,
+      blocklist: {
+        ...(extended.blocklist ?? {}),
+        toolNames: [...(extended.blocklist?.toolNames ?? []), ...(intelBlocklist.toolNames ?? [])],
+        packageNames: [...(extended.blocklist?.packageNames ?? []), ...(intelBlocklist.packageNames ?? [])],
+        urlPatterns: [...(extended.blocklist?.urlPatterns ?? []), ...(intelBlocklist.urlPatterns ?? [])],
+        contentPatterns: [...(extended.blocklist?.contentPatterns ?? []), ...(intelBlocklist.contentPatterns ?? [])],
+        sha256: [...(extended.blocklist?.sha256 ?? []), ...(intelBlocklist.sha256 ?? [])],
+      },
+    } as Policy
+  }
+
+  private async loadThreatIntel(): Promise<void> {
+    const policy = this.policy as ExtendedPolicy
+    const feed = policy.threatFeed
+    if (!feed?.enabled) {
+      this.threatIntelEntries = []
+      return
+    }
+
+    try {
+      const store = feed.cachePath ? new ThreatIntelStore({ cachePath: feed.cachePath }) : this.threatIntelStore
+
+      if (feed.autoSync && Array.isArray(feed.sources) && feed.sources.length > 0) {
+        await store.syncFromSources(feed.sources)
+      }
+
+      const snapshot = await store.loadSnapshot()
+      this.threatIntelEntries = snapshot.entries
+    } catch (error) {
+      const failOpen = feed.failOpen ?? true
+      if (!failOpen) {
+        throw error
+      }
+
+      this.threatIntelEntries = []
+      const err = this.ensureError(error)
+      this.logAuditEntry(
+        {
+          kind: 'install_scan',
+          policy: this.policy,
+          meta: {
+            phase: 'threat_feed_load_error',
+            error: err.message,
+          },
+        } as AssessmentContext,
+        {
+          action: 'allow',
+          risk: 0,
+          confidence: 0,
+          reasons: [`Threat feed load failed (fail-open): ${err.message}`],
+          evidence: [],
+        }
+      )
     }
   }
 

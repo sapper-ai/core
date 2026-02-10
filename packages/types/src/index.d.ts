@@ -10,6 +10,14 @@ export interface ToolCall {
     arguments: unknown;
     meta?: Record<string, unknown>;
 }
+export interface ToolMetadata {
+    name?: string;
+    version?: string;
+    packageName?: string;
+    ecosystem?: 'npm' | 'pypi' | 'mcp' | 'unknown';
+    sourceUrl?: string;
+    sha256?: string;
+}
 /**
  * Tool result representation
  */
@@ -25,6 +33,8 @@ export interface AssessmentContext {
     toolCall?: ToolCall;
     toolResult?: ToolResult;
     policy: Policy;
+    toolMetadata?: ToolMetadata;
+    meta?: Record<string, unknown>;
 }
 /**
  * Detector interface for security assessments
@@ -61,8 +71,26 @@ export interface ToolPolicy {
     mode?: 'monitor' | 'enforce';
     detectors?: string[];
     thresholds?: {
+        riskThreshold?: number;
         blockMinConfidence?: number;
     };
+    allowlist?: MatchList;
+    blocklist?: MatchList;
+}
+export interface MatchList {
+    toolNames?: string[];
+    urlPatterns?: string[];
+    contentPatterns?: string[];
+    packageNames?: string[];
+    sha256?: string[];
+}
+export interface ThreatFeedConfig {
+    enabled?: boolean;
+    sources?: string[];
+    ttlMinutes?: number;
+    autoSync?: boolean;
+    failOpen?: boolean;
+    cachePath?: string;
 }
 /**
  * LLM configuration
@@ -80,7 +108,15 @@ export interface Policy {
     mode: 'monitor' | 'enforce';
     defaultAction: GuardAction;
     failOpen: boolean;
+    detectors?: string[];
+    thresholds?: {
+        riskThreshold?: number;
+        blockMinConfidence?: number;
+    };
     toolOverrides?: Record<string, ToolPolicy>;
+    allowlist?: MatchList;
+    blocklist?: MatchList;
+    threatFeed?: ThreatFeedConfig;
     llm?: LlmConfig;
 }
 /**

@@ -42,7 +42,8 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@sapper-ai/core": "workspace:*",
-    "@sapper-ai/types": "workspace:*"
+    "@sapper-ai/types": "workspace:*",
+    "chokidar": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
