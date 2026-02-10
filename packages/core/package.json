@@ -1,0 +1,41 @@
+{
+  "name": "@sapperai/core",
+  "version": "0.1.0",
+  "description": "Core security engine for SapperAI - rules-based threat detection and policy enforcement",
+  "keywords": ["security", "ai", "prompt-injection", "guardrails", "detection", "rules-engine"],
+  "license": "MIT",
+  "author": "SapperAI",
+  "homepage": "https://github.com/sapperai/sapperai#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sapperai/sapperai.git",
+    "directory": "packages/core"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest --run",
+    "bench": "vitest bench --run"
+  },
+  "dependencies": {
+    "@sapperai/types": "workspace:*",
+    "yaml": "^2.8.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}

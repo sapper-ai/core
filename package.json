@@ -1,0 +1,27 @@
+{
+  "name": "sapperai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lightweight, rules-based security framework for AI systems",
+  "packageManager": "pnpm@10.19.0",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo lint"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8",
+    "@types/node": "^20.0.0",
+    "turbo": "^1.10.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

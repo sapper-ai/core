@@ -1,0 +1,18 @@
+# Dependencies & Build
+node_modules
+dist
+.turbo
+coverage
+*.tsbuildinfo
+
+# System
+.DS_Store
+.env
+*.log
+
+# Sensitive Project Files
+docs/reports/
+scripts/run-real-env-mcp-scan.mjs
+
+# Agent Internal Files
+.sisyphus/
