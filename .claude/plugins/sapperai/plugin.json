@@ -1,0 +1,15 @@
+{
+  "name": "sapperai",
+  "version": "0.1.0",
+  "description": "SapperAI guardrails for Claude Code",
+  "hooks": {
+    "PreToolUse": {
+      "command": "./hooks/pre-tool-use.sh",
+      "timeout": 30
+    },
+    "PostToolUse": {
+      "command": "./hooks/post-tool-use.sh",
+      "timeout": 30
+    }
+  }
+}
