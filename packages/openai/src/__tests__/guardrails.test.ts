@@ -28,7 +28,7 @@ describe('createToolInputGuardrail', () => {
   })
 
   it('blocks malicious tool input in enforce mode', async () => {
-    const guardrail = createToolInputGuardrail(enforcePolicy, mockLogger)
+    const guardrail = createToolInputGuardrail(enforcePolicy, { logger: mockLogger })
 
     // Simulate calling the guardrail handler with malicious input
     // Expected: handler throws error when Guard detects prompt injection
@@ -59,7 +59,7 @@ describe('createToolInputGuardrail', () => {
   })
 
   it('allows benign tool input', async () => {
-    const guardrail = createToolInputGuardrail(enforcePolicy, mockLogger)
+    const guardrail = createToolInputGuardrail(enforcePolicy, { logger: mockLogger })
 
     const benignToolCall = {
       toolName: 'read_file',
@@ -76,7 +76,7 @@ describe('createToolInputGuardrail', () => {
   })
 
   it('defaults to monitor mode when policy not specified', async () => {
-    const guardrail = createToolInputGuardrail(monitorPolicy, mockLogger)
+    const guardrail = createToolInputGuardrail(monitorPolicy, { logger: mockLogger })
 
     const maliciousToolCall = {
       toolName: 'bash',
@@ -94,7 +94,7 @@ describe('createToolInputGuardrail', () => {
   })
 
   it('logs decisions to AuditLogger', async () => {
-    const guardrail = createToolInputGuardrail(enforcePolicy, mockLogger)
+    const guardrail = createToolInputGuardrail(enforcePolicy, { logger: mockLogger })
 
     const toolCall = {
       toolName: 'search',
@@ -151,7 +151,7 @@ describe('createToolOutputGuardrail', () => {
   })
 
   it('blocks malicious tool output in enforce mode', async () => {
-    const guardrail = createToolOutputGuardrail(enforcePolicy, mockLogger)
+    const guardrail = createToolOutputGuardrail(enforcePolicy, { logger: mockLogger })
 
     const toolCall = {
       toolName: 'web_search',
@@ -181,7 +181,7 @@ describe('createToolOutputGuardrail', () => {
   })
 
   it('allows benign tool output', async () => {
-    const guardrail = createToolOutputGuardrail(enforcePolicy, mockLogger)
+    const guardrail = createToolOutputGuardrail(enforcePolicy, { logger: mockLogger })
 
     const toolCall = {
       toolName: 'web_search',

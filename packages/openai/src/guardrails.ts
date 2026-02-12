@@ -1,26 +1,32 @@
-import { AuditLogger, DecisionEngine, Guard, LlmDetector, RulesDetector } from '@sapper-ai/core'
-import type { AuditLogEntry, Detector, Policy, ToolCall, ToolResult } from '@sapper-ai/types'
-import { defineToolInputGuardrail, defineToolOutputGuardrail } from '@openai/agents'
+import { AuditLogger, createDetectors, DecisionEngine, Guard } from '@sapper-ai/core'
+import type { ThreatIntelEntry } from '@sapper-ai/core'
+import type { AuditLogEntry, Policy, ToolCall, ToolResult } from '@sapper-ai/types'
+
+interface GuardrailOptions {
+  logger?: { log: (entry: AuditLogEntry) => void }
+  threatIntelEntries?: ThreatIntelEntry[]
+}
 
 /**
  * Create a tool input guardrail that integrates SapperAI Guard with OpenAI Agents SDK.
  * The guardrail intercepts tool calls before execution and blocks malicious inputs.
  *
  * @param policy - Security policy configuration
- * @param logger - Optional audit logger for decision tracking
+ * @param options - Optional guardrail options (logger, threatIntelEntries)
  * @returns Guardrail handler function for testing and integration
  */
-export function createToolInputGuardrail(policy: Policy, logger?: { log: (entry: AuditLogEntry) => void }) {
-  const handler = async (toolCall: unknown) => {
-    const detectors: Detector[] = [new RulesDetector()]
-    if (policy.llm) {
-      detectors.push(new LlmDetector(policy.llm))
-    }
+export function createToolInputGuardrail(policy: Policy, options?: GuardrailOptions) {
+  const detectors = createDetectors({
+    policy,
+    threatIntelEntries: options?.threatIntelEntries,
+  })
+  const auditLogger = options?.logger
+    ? ({ log: options.logger.log } as unknown as AuditLogger)
+    : new AuditLogger()
+  const decisionEngine = new DecisionEngine(detectors)
+  const guard = new Guard(decisionEngine, auditLogger, policy)
 
-    const auditLogger = logger ? { log: logger.log } as unknown as AuditLogger : new AuditLogger()
-    const decisionEngine = new DecisionEngine(detectors)
-    const guard = new Guard(decisionEngine, auditLogger, policy)
-
+  return async (toolCall: unknown) => {
     const decision = await guard.preTool(toolCall as ToolCall)
 
     if (decision.action === 'block') {
@@ -28,8 +34,6 @@ export function createToolInputGuardrail(policy: Policy, logger?: { log: (entry:
       throw new Error(`Tool call blocked: ${reason}`)
     }
   }
-
-  return handler
 }
 
 /**
@@ -37,20 +41,21 @@ export function createToolInputGuardrail(policy: Policy, logger?: { log: (entry:
  * The guardrail intercepts tool results after execution and blocks malicious outputs.
  *
  * @param policy - Security policy configuration
- * @param logger - Optional audit logger for decision tracking
+ * @param options - Optional guardrail options (logger, threatIntelEntries)
  * @returns Guardrail handler function for testing and integration
  */
-export function createToolOutputGuardrail(policy: Policy, logger?: { log: (entry: AuditLogEntry) => void }) {
-  const handler = async (toolCall: unknown, toolResult: unknown) => {
-    const detectors: Detector[] = [new RulesDetector()]
-    if (policy.llm) {
-      detectors.push(new LlmDetector(policy.llm))
-    }
+export function createToolOutputGuardrail(policy: Policy, options?: GuardrailOptions) {
+  const detectors = createDetectors({
+    policy,
+    threatIntelEntries: options?.threatIntelEntries,
+  })
+  const auditLogger = options?.logger
+    ? ({ log: options.logger.log } as unknown as AuditLogger)
+    : new AuditLogger()
+  const decisionEngine = new DecisionEngine(detectors)
+  const guard = new Guard(decisionEngine, auditLogger, policy)
 
-    const auditLogger = logger ? { log: logger.log } as unknown as AuditLogger : new AuditLogger()
-    const decisionEngine = new DecisionEngine(detectors)
-    const guard = new Guard(decisionEngine, auditLogger, policy)
-
+  return async (toolCall: unknown, toolResult: unknown) => {
     const decision = await guard.postTool(toolCall as ToolCall, toolResult as ToolResult)
 
     if (decision.action === 'block') {
@@ -58,6 +63,4 @@ export function createToolOutputGuardrail(policy: Policy, logger?: { log: (entry
       throw new Error(`Tool result blocked: ${reason}`)
     }
   }
-
-  return handler
 }
