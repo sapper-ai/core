@@ -23,7 +23,13 @@ type DetectionResponse = {
   confidence: number
   reasons: string[]
   evidence: DetectorEvidence[]
+  source?: {
+    fileName: string
+    fileSize: number
+  }
 }
+
+const MAX_UPLOAD_FILE_SIZE = 1024 * 1024
 
 const presets: DemoPreset[] = [
   {
@@ -89,6 +95,10 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<DetectionResponse | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadResult, setUploadResult] = useState<DetectionResponse | null>(null)
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null)
 
   const selectedPreset = useMemo(
     () => presets.find((preset) => preset.id === selectedPresetId) ?? presets[0],
@@ -142,6 +152,52 @@ export default function HomePage() {
     }
   }
 
+  const handleSkillFileUpload = async (file: File): Promise<void> => {
+    const normalizedName = file.name.toLowerCase()
+
+    if (!normalizedName.endsWith('.md') && !normalizedName.endsWith('.markdown')) {
+      setUploadError('.md 또는 .markdown 파일만 업로드할 수 있습니다.')
+      setUploadResult(null)
+      return
+    }
+
+    if (file.size > MAX_UPLOAD_FILE_SIZE) {
+      setUploadError('파일 크기는 최대 1MB까지 허용됩니다.')
+      setUploadResult(null)
+      return
+    }
+
+    setUploading(true)
+    setUploadError(null)
+    setUploadResult(null)
+    setSelectedFileName(file.name)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/scan-file', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const payload = (await response.json()) as DetectionResponse | { error?: string }
+
+      if (!response.ok) {
+        const message = 'error' in payload && payload.error ? payload.error : '파일 분석에 실패했습니다.'
+        throw new Error(message)
+      }
+
+      setUploadResult(payload as DetectionResponse)
+    } catch (requestError) {
+      const message = requestError instanceof Error ? requestError.message : '알 수 없는 오류가 발생했습니다.'
+      setUploadError(message)
+      setUploadResult(null)
+    } finally {
+      setUploading(false)
+    }
+  }
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-16 px-6 pb-20 pt-12 md:px-12">
       <section className="glass-card relative overflow-hidden rounded-3xl p-8 shadow-aura md:p-12">
@@ -164,6 +220,106 @@ export default function HomePage() {
             <span className="rounded-full bg-white/90 px-4 py-2">96% 악성 샘플 차단</span>
             <span className="rounded-full bg-white/90 px-4 py-2">0% 정상 샘플 오탐</span>
             <span className="rounded-full bg-white/90 px-4 py-2">Rules-only p99 0.0018ms</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 rounded-3xl bg-white/90 p-7 shadow-aura md:p-10">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-3xl font-bold text-ink">skill.md 업로드 위험 분석</h2>
+          <p className="text-steel/85">
+            Skill 문서를 업로드하면 SapperAI가 install-scan 컨텍스트로 위험도를 분석합니다. (최대 1MB, UTF-8 markdown)
+          </p>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
+          <div className="grid gap-4">
+            <label className="grid gap-2 text-sm font-semibold text-steel">
+              파일 선택 (.md / .markdown)
+              <input
+                type="file"
+                accept=".md,.markdown,text/markdown,text/plain"
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-ink"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (!file) {
+                    return
+                  }
+
+                  void handleSkillFileUpload(file)
+                }}
+              />
+            </label>
+            <p className="text-xs text-steel/70">지원 형식: .md, .markdown / 최대 1MB / UTF-8</p>
+            {selectedFileName && <p className="text-sm font-medium text-steel">선택 파일: {selectedFileName}</p>}
+            {uploading && <p className="text-sm font-semibold text-signal">파일 분석 중...</p>}
+          </div>
+
+          <div className="glass-card rounded-2xl border border-white/75 p-5">
+            {!uploadResult && !uploadError && (
+              <div className="grid gap-3 text-sm text-steel/85">
+                <p className="text-base font-semibold text-ink">업로드 결과 대기 중</p>
+                <p>skill.md 파일을 업로드하면 차단/허용 결과와 탐지 근거를 바로 확인할 수 있습니다.</p>
+              </div>
+            )}
+
+            {uploadError && (
+              <div className="rounded-xl border border-ember/30 bg-ember/10 p-4 text-sm text-ember">
+                <p className="font-semibold">업로드 분석 오류</p>
+                <p className="mt-1 whitespace-pre-wrap">{uploadError}</p>
+              </div>
+            )}
+
+            {uploadResult && (
+              <div className="grid gap-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] ${
+                      uploadResult.action === 'block' ? 'bg-ember text-white' : 'bg-mint text-white'
+                    }`}
+                  >
+                    {uploadResult.action === 'block' ? 'BLOCK' : 'ALLOW'}
+                  </span>
+                  <span className="rounded-full bg-steel/10 px-3 py-1 text-xs font-semibold text-steel">
+                    Risk {(uploadResult.risk * 100).toFixed(1)}%
+                  </span>
+                  <span className="rounded-full bg-steel/10 px-3 py-1 text-xs font-semibold text-steel">
+                    Confidence {(uploadResult.confidence * 100).toFixed(1)}%
+                  </span>
+                </div>
+
+                {uploadResult.source && (
+                  <p className="text-xs text-steel/80">
+                    분석 파일: {uploadResult.source.fileName} ({(uploadResult.source.fileSize / 1024).toFixed(1)} KB)
+                  </p>
+                )}
+
+                <div className="grid gap-2">
+                  <p className="text-sm font-semibold text-ink">판단 이유</p>
+                  <ul className="grid gap-2">
+                    {uploadResult.reasons.map((reason) => (
+                      <li key={reason} className="rounded-lg bg-white px-3 py-2 text-sm text-steel">
+                        {reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="grid gap-2">
+                  <p className="text-sm font-semibold text-ink">탐지기 근거</p>
+                  <div className="grid gap-2">
+                    {uploadResult.evidence.map((entry) => (
+                      <div key={`${entry.detectorId}-${entry.risk}`} className="rounded-lg border border-slate-200 bg-white p-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-steel">{entry.detectorId}</p>
+                        <p className="mt-1 text-xs text-steel/85">
+                          Risk {(entry.risk * 100).toFixed(1)}% / Confidence {(entry.confidence * 100).toFixed(1)}%
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
