@@ -1,17 +1,9 @@
 import type { AssessmentContext, Detector, DetectorOutput } from '@sapper-ai/types'
 
 import type { ThreatIntelEntry } from '../intel/ThreatIntelStore'
-
-function safeRegExp(pattern: string): RegExp | null {
-  try {
-    return new RegExp(pattern, 'i')
-  } catch {
-    return null
-  }
-}
+import { safeRegExp } from '../utils/safeRegExp'
 
 function contextText(ctx: AssessmentContext): string {
-  const ctxWithMeta = ctx as AssessmentContext & { meta?: Record<string, unknown> }
   const chunks: string[] = []
   if (ctx.toolCall) {
     chunks.push(JSON.stringify(ctx.toolCall.arguments ?? {}))
@@ -27,16 +19,14 @@ function contextText(ctx: AssessmentContext): string {
     }
   }
 
-  if (ctxWithMeta.meta) {
-    chunks.push(JSON.stringify(ctxWithMeta.meta))
+  if (ctx.meta) {
+    chunks.push(JSON.stringify(ctx.meta))
   }
 
   return chunks.join('\n').toLowerCase()
 }
 
-function hasMatch(entry: ThreatIntelEntry, ctx: AssessmentContext): boolean {
-  const toolName = ctx.toolCall?.toolName?.toLowerCase()
-  const text = contextText(ctx)
+function hasMatch(entry: ThreatIntelEntry, text: string, toolName: string | undefined): boolean {
 
   if (entry.type === 'toolName') {
     return toolName === entry.value.toLowerCase()
@@ -71,18 +61,15 @@ export class ThreatIntelDetector implements Detector {
   }
 
   async run(ctx: AssessmentContext): Promise<DetectorOutput | null> {
-    const matched = this.entries.filter((entry) => hasMatch(entry, ctx))
+    const text = contextText(ctx)
+    const toolName = ctx.toolCall?.toolName?.toLowerCase()
+    const matched = this.entries.filter((entry) => hasMatch(entry, text, toolName))
     if (matched.length === 0) {
       return null
     }
 
-    const maxSeverity = matched.some((entry) => entry.severity === 'critical')
-      ? 1
-      : matched.some((entry) => entry.severity === 'high')
-        ? 0.95
-        : matched.some((entry) => entry.severity === 'medium')
-          ? 0.85
-          : 0.75
+    const severityScores: Record<string, number> = { critical: 1, high: 0.95, medium: 0.85, low: 0.75 }
+    const maxSeverity = Math.max(...matched.map((e) => severityScores[e.severity] ?? 0.75))
 
     return {
       detectorId: this.id,

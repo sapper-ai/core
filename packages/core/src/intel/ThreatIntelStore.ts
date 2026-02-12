@@ -146,12 +146,17 @@ export class ThreatIntelStore {
     const accepted: ThreatIntelEntry[] = []
     let skippedEntries = 0
 
+    const MAX_ENTRIES = 10_000
     for (const source of sources) {
       const entries = await this.pullSource(source)
       for (const rawEntry of entries) {
         const normalized = normalizeEntry(rawEntry, source)
         if (normalized) {
-          accepted.push(normalized)
+          if (accepted.length < MAX_ENTRIES) {
+            accepted.push(normalized)
+          } else {
+            skippedEntries += 1
+          }
         } else {
           skippedEntries += 1
         }
@@ -181,6 +186,10 @@ export class ThreatIntelStore {
   }
 
   private async pullSource(source: string): Promise<unknown[]> {
+    if (!source.startsWith('https://') && !source.startsWith('http://')) {
+      throw new Error(`Unsupported threat feed URL scheme: ${source}`)
+    }
+
     const controller = new AbortController()
     const timeoutId = setTimeout(() => {
       controller.abort()

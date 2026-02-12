@@ -185,7 +185,7 @@ export class RulesDetector implements Detector {
         uniqueMatches.set(rule.label, {
           label: rule.label,
           severity: rule.severity,
-          sample: text,
+          sample: text.slice(0, 200),
         })
       }
     }

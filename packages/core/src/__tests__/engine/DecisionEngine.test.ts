@@ -225,4 +225,76 @@ describe('DecisionEngine', () => {
     expect(runOrder).toEqual(['rules', 'llm'])
     expect(decision.evidence.map((item) => item.detectorId)).toEqual(['rules', 'llm'])
   })
+
+  it('blocks when risk and confidence exactly meet thresholds', async () => {
+    const detector = createDetector('rules', {
+      detectorId: 'rules',
+      risk: 0.7,
+      confidence: 0.5,
+      reasons: ['threshold boundary'],
+    })
+
+    const engine = new DecisionEngine([detector])
+    const decision = await engine.assess(createContext())
+
+    expect(decision.action).toBe('block')
+  })
+
+  it('allows when risk is just below threshold', async () => {
+    const detector = createDetector('rules', {
+      detectorId: 'rules',
+      risk: 0.69,
+      confidence: 0.9,
+      reasons: ['just below'],
+    })
+
+    const engine = new DecisionEngine([detector])
+    const decision = await engine.assess(createContext())
+
+    expect(decision.action).toBe('allow')
+  })
+
+  it('allows when confidence is just below threshold', async () => {
+    const detector = createDetector('rules', {
+      detectorId: 'rules',
+      risk: 0.9,
+      confidence: 0.49,
+      reasons: ['low confidence'],
+    })
+
+    const engine = new DecisionEngine([detector])
+    const decision = await engine.assess(createContext())
+
+    expect(decision.action).toBe('allow')
+  })
+
+  it('preserves prior detector results when failOpen continues', async () => {
+    const good: Detector = {
+      id: 'rules',
+      appliesTo: () => true,
+      run: async () => ({
+        detectorId: 'rules',
+        risk: 0.8,
+        confidence: 0.9,
+        reasons: ['detected threat'],
+      }),
+    }
+
+    const faulty: Detector = {
+      id: 'faulty',
+      appliesTo: () => true,
+      run: async () => {
+        throw new Error('crash')
+      },
+    }
+
+    const engine = new DecisionEngine([good, faulty])
+    const decision = await engine.assess(createContext())
+
+    expect(decision.action).toBe('allow')
+    expect(decision.reasons).toContain('detected threat')
+    expect(decision.reasons.some((r) => r.includes('crash'))).toBe(true)
+    expect(decision.evidence).toHaveLength(1)
+    expect(decision.evidence[0]!.detectorId).toBe('rules')
+  })
 })

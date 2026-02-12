@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 
 import type { MatchList, Policy, ToolCall, ToolMetadata, ToolResult } from '@sapper-ai/types'
 
+import { safeRegExp } from '../utils/safeRegExp'
+
 export interface MatchSubject {
   toolName?: string
   content?: string
@@ -16,14 +18,6 @@ export type PolicyMatchAction = 'allow' | 'block' | 'none'
 export interface PolicyMatchResult {
   action: PolicyMatchAction
   reasons: string[]
-}
-
-function safeRegExp(pattern: string): RegExp | null {
-  try {
-    return new RegExp(pattern, 'i')
-  } catch {
-    return null
-  }
 }
 
 function textFromSubject(subject: MatchSubject): string {
@@ -57,7 +51,7 @@ function normalize(value: string): string {
   return value.trim().toLowerCase()
 }
 
-function checkList(list: MatchList | undefined, subject: MatchSubject): string[] {
+function checkList(list: MatchList | undefined, subject: MatchSubject, content: string): string[] {
   if (!list) {
     return []
   }
@@ -66,8 +60,8 @@ function checkList(list: MatchList | undefined, subject: MatchSubject): string[]
   const normalizedToolName = subject.toolName ? normalize(subject.toolName) : null
   const sourceUrl = subject.metadata?.sourceUrl ? normalize(subject.metadata.sourceUrl) : null
   const packageName = subject.metadata?.packageName ? normalize(subject.metadata.packageName) : null
-  const fileHash = subject.fileHash ? normalize(subject.fileHash) : subject.metadata?.sha256 ? normalize(subject.metadata.sha256) : null
-  const content = textFromSubject(subject)
+  const rawHash = subject.fileHash ?? subject.metadata?.sha256
+  const fileHash = rawHash ? normalize(rawHash) : null
 
   for (const candidate of list.toolNames ?? []) {
     if (normalizedToolName && normalize(candidate) === normalizedToolName) {
@@ -113,19 +107,21 @@ function checkList(list: MatchList | undefined, subject: MatchSubject): string[]
 }
 
 export function evaluatePolicyMatch(policy: Policy, subject: MatchSubject): PolicyMatchResult {
-  const allowReasons = checkList(policy.allowlist, subject)
-  if (allowReasons.length > 0) {
-    return {
-      action: 'allow',
-      reasons: allowReasons,
-    }
-  }
+  const content = textFromSubject(subject)
 
-  const blockReasons = checkList(policy.blocklist, subject)
+  const blockReasons = checkList(policy.blocklist, subject, content)
   if (blockReasons.length > 0) {
     return {
       action: 'block',
       reasons: blockReasons,
+    }
+  }
+
+  const allowReasons = checkList(policy.allowlist, subject, content)
+  if (allowReasons.length > 0) {
+    return {
+      action: 'allow',
+      reasons: allowReasons,
     }
   }
 

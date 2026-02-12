@@ -10,6 +10,7 @@ export class DecisionEngine {
 
   async assess(ctx: AssessmentContext): Promise<Decision> {
     const outputs: DetectorOutput[] = []
+    const failOpenReasons: string[] = []
 
     for (const detector of this.detectors) {
       const contextForDetector = this.withPriorRisk(ctx, outputs)
@@ -29,17 +30,22 @@ export class DecisionEngine {
         }
 
         const errorMessage = error instanceof Error ? error.message : String(error)
-        const partialDecision = this.buildDecision(ctx.policy, outputs)
-
-        return {
-          ...partialDecision,
-          action: 'allow',
-          reasons: [...partialDecision.reasons, `Detector ${detector.id} error: ${errorMessage}`],
-        }
+        failOpenReasons.push(`Detector ${detector.id} error: ${errorMessage}`)
+        continue
       }
     }
 
-    return this.buildDecision(ctx.policy, outputs)
+    const decision = this.buildDecision(ctx.policy, outputs)
+
+    if (failOpenReasons.length > 0) {
+      return {
+        ...decision,
+        action: 'allow',
+        reasons: [...decision.reasons, ...failOpenReasons],
+      }
+    }
+
+    return decision
   }
 
   private withPriorRisk(ctx: AssessmentContext, outputs: DetectorOutput[]): AssessmentContext {

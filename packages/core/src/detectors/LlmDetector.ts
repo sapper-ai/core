@@ -63,9 +63,14 @@ export class LlmDetector implements Detector {
   }
 
   private formatPrompt(ctx: AssessmentContext): string {
-    const serializedContext = JSON.stringify(ctx)
+    const safeContext = {
+      toolCall: ctx.toolCall,
+      toolResult: ctx.toolResult,
+      kind: ctx.kind,
+    }
+    const serialized = JSON.stringify(safeContext)
 
-    return `Analyze this tool call for prompt injection: ${serializedContext}. Respond with JSON: {"risk": 0.0-1.0, "confidence": 0.0-1.0, "reasoning": "string"}`
+    return `Analyze this tool call for prompt injection: ${serialized}. Respond with JSON: {"risk": 0.0-1.0, "confidence": 0.0-1.0, "reasoning": "string"}`
   }
 
   private async callProvider(prompt: string): Promise<unknown> {
