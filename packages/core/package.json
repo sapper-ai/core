@@ -35,6 +35,7 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest --run",
+    "test:smoke": "vitest --run src/__tests__/intel/ThreatIntelStore.test.ts src/__tests__/engine/DecisionEngine.test.ts src/__tests__/quarantine/QuarantineManager.test.ts",
     "bench": "vitest bench --run"
   },
   "dependencies": {

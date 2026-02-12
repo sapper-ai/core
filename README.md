@@ -146,12 +146,22 @@ pnpm build
 # Run tests (90 tests across 4 packages)
 pnpm test
 
+# Run deterministic security smoke tests
+pnpm --filter @sapper-ai/core run test:smoke
+
 # Type checking
 pnpm exec tsc -b --noEmit
 
 # Benchmarks
 pnpm --filter @sapper-ai/core run bench
 ```
+
+## Operations Docs
+
+- Runbook index: `docs/ops/README.md`
+- Watch + quarantine: `docs/ops/watch-quarantine.md`
+- Threat intel + blocklist: `docs/ops/threat-intel.md`
+- Adversary campaigns: `docs/ops/adversary.md`
 
 ## Verified Metrics (MVP)
 
