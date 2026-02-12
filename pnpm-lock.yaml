@@ -26,9 +26,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@openai/agents':
+        specifier: ^0.4.6
+        version: 0.4.6(ws@8.19.0)(zod@4.3.6)
       '@sapper-ai/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@sapper-ai/openai':
+        specifier: workspace:*
+        version: link:../../packages/openai
       '@sapper-ai/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -41,6 +47,9 @@ importers:
       react-dom:
         specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@types/node':
         specifier: ^20.0.0

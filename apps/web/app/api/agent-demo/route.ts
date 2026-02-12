@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 
+import { Agent, InputGuardrailTripwireTriggered, run, tool } from '@openai/agents'
+import type { InputGuardrail, ToolInputGuardrailDefinition } from '@openai/agents'
 import { AuditLogger, createDetectors, DecisionEngine, Guard, PolicyManager } from '@sapper-ai/core'
+import { createSapperInputGuardrail, createSapperToolInputGuardrail } from '@sapper-ai/openai'
 import type { Decision, Policy, ToolCall } from '@sapper-ai/types'
+import { z } from 'zod'
 
 export const runtime = 'nodejs'
 
@@ -63,6 +67,11 @@ const rawPolicy: Policy = {
 const policy = new PolicyManager().loadFromObject(rawPolicy)
 const detectors = createDetectors({ policy })
 const guard = new Guard(new DecisionEngine(detectors), new AuditLogger(), policy)
+
+function safeToolName(value: string): string {
+  const sanitized = value.replace(/[^a-zA-Z0-9_-]/g, '_')
+  return sanitized.length > 64 ? sanitized.slice(0, 64) : sanitized
+}
 
 const scenarios: Record<AgentScenarioId, AgentScenario> = {
   'malicious-install': {
@@ -240,6 +249,155 @@ function summarizeArguments(value: Record<string, unknown>): string {
   }
 }
 
+async function simulateScenario(options: {
+  scenario: AgentScenario
+  executeBlocked: boolean
+}): Promise<{ steps: AgentStepResult[]; halted: boolean }> {
+  const steps: AgentStepResult[] = []
+  let halted = false
+
+  for (const step of options.scenario.steps) {
+    const startedAt = Date.now()
+    const toolCall: ToolCall = {
+      toolName: step.toolName,
+      arguments: step.arguments,
+      meta: {
+        scenarioId: options.scenario.id,
+        scenarioStep: step.id,
+      },
+    }
+
+    const decision = await guard.preTool(toolCall)
+    const blocked = decision.action === 'block'
+    const analysis = await generateAnalysis(step, decision)
+
+    steps.push({
+      stepId: step.id,
+      label: step.label,
+      toolName: step.toolName,
+      argumentsPreview: summarizeArguments(step.arguments),
+      blocked,
+      executed: !blocked || options.executeBlocked,
+      timestamp: new Date().toISOString(),
+      durationMs: Date.now() - startedAt,
+      analysis,
+      decision,
+    })
+
+    if (blocked && !options.executeBlocked) {
+      halted = true
+      break
+    }
+  }
+
+  return { steps, halted }
+}
+
+async function runAgentSdkScenario(options: {
+  scenario: AgentScenario
+}): Promise<{ modelLabel: string } | { modelLabel: string; inputGuardrailTrip: AgentStepResult }> {
+  const toolInputGuardrail =
+    createSapperToolInputGuardrail('sapper-tool-input', policy) as unknown as ToolInputGuardrailDefinition
+
+  const toolNameMap = new Map<string, string>()
+  const tools = options.scenario.steps.map((step) => {
+    const sdkToolName = safeToolName(step.toolName)
+    toolNameMap.set(step.toolName, sdkToolName)
+
+    return tool({
+      name: sdkToolName,
+      description: `${step.label} (scenario tool: ${step.toolName})`,
+      parameters: z.object({}).passthrough(),
+      inputGuardrails: [toolInputGuardrail],
+      execute: async (input: Record<string, unknown>) => {
+        return {
+          ok: true,
+          tool: step.toolName,
+          toolSdkName: sdkToolName,
+          input,
+          simulated: true,
+        }
+      },
+    })
+  })
+
+  const agent = new Agent({
+    name: 'SapperAI Guardrail Demo',
+    instructions:
+      'You are a deterministic demo agent. Execute the scenario steps in order by calling each tool with the provided arguments. Do not add extra steps.',
+    tools,
+    inputGuardrails: [createSapperInputGuardrail('sapper-input', policy) as unknown as InputGuardrail],
+  })
+
+  const runInput = JSON.stringify(
+    {
+      scenario: {
+        id: options.scenario.id,
+        title: options.scenario.title,
+        steps: options.scenario.steps.map((step) => ({
+          id: step.id,
+          label: step.label,
+          toolName: toolNameMap.get(step.toolName) ?? safeToolName(step.toolName),
+          arguments: step.arguments,
+        })),
+      },
+      instruction:
+        'Execute the scenario strictly in order. For each step, call the tool with the exact arguments. After the last tool call, respond with a short completion message.',
+    },
+    null,
+    2,
+  )
+
+  try {
+    await run(agent, runInput)
+    return { modelLabel: 'gpt-4.1-mini + rules (Agent SDK)' }
+  } catch (error) {
+    if (error instanceof InputGuardrailTripwireTriggered) {
+      const startedAt = Date.now()
+      type TripwireOutputInfo = {
+        risk?: number
+        confidence?: number
+        reasons?: string[]
+        evidence?: Decision['evidence']
+      }
+      const outputInfo = (error as { outputInfo?: TripwireOutputInfo }).outputInfo
+      const decision: Decision = {
+        action: 'block',
+        risk: outputInfo?.risk ?? 1,
+        confidence: outputInfo?.confidence ?? 1,
+        reasons: outputInfo?.reasons ?? ['Input blocked by guardrail'],
+        evidence: outputInfo?.evidence ?? [],
+      }
+
+      const syntheticStep: AgentScenarioStep = {
+        id: 'input-guardrail',
+        label: '에이전트 입력 검사',
+        toolName: '__agent_input__',
+        arguments: { text: runInput },
+      }
+
+      const analysis = await generateAnalysis(syntheticStep, decision)
+      return {
+        modelLabel: 'gpt-4.1-mini + rules (Agent SDK)',
+        inputGuardrailTrip: {
+          stepId: syntheticStep.id,
+          label: syntheticStep.label,
+          toolName: syntheticStep.toolName,
+          argumentsPreview: runInput.length > 180 ? `${runInput.slice(0, 177)}...` : runInput,
+          blocked: true,
+          executed: false,
+          timestamp: new Date().toISOString(),
+          durationMs: Date.now() - startedAt,
+          analysis,
+          decision,
+        },
+      }
+    }
+
+    return { modelLabel: 'gpt-4.1-mini + rules (Agent SDK, error fallback)' }
+  }
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const payload = (await request.json()) as AgentDemoRequest
@@ -247,49 +405,29 @@ export async function POST(request: Request): Promise<NextResponse> {
     const executeBlocked = payload.executeBlocked === true
     const runId = `agent-run-${Date.now().toString(36)}`
 
-    const steps: AgentStepResult[] = []
-    let halted = false
+    let modelLabel = openAiApiKey
+      ? 'gpt-4.1-mini + rules (Agent SDK)'
+      : 'rules-only (OPENAI_API_KEY not set)'
 
-    for (const step of scenario.steps) {
-      const startedAt = Date.now()
-      const toolCall: ToolCall = {
-        toolName: step.toolName,
-        arguments: step.arguments,
-        meta: {
-          scenarioId: scenario.id,
-          scenarioStep: step.id,
-        },
-      }
-
-      const decision = await guard.preTool(toolCall)
-      const blocked = decision.action === 'block'
-      const analysis = await generateAnalysis(step, decision)
-
-      steps.push({
-        stepId: step.id,
-        label: step.label,
-        toolName: step.toolName,
-        argumentsPreview: summarizeArguments(step.arguments),
-        blocked,
-        executed: !blocked || executeBlocked,
-        timestamp: new Date().toISOString(),
-        durationMs: Date.now() - startedAt,
-        analysis,
-        decision,
-      })
-
-      if (blocked && !executeBlocked) {
-        halted = true
-        break
+    let inputTripStep: AgentStepResult | null = null
+    if (openAiApiKey) {
+      const sdkResult = await runAgentSdkScenario({ scenario })
+      modelLabel = sdkResult.modelLabel
+      if ('inputGuardrailTrip' in sdkResult) {
+        inputTripStep = sdkResult.inputGuardrailTrip
       }
     }
+
+    const simulation = await simulateScenario({ scenario, executeBlocked })
+    const steps = inputTripStep ? [inputTripStep, ...simulation.steps] : simulation.steps
+    const halted = inputTripStep ? true : simulation.halted
 
     const blockedCount = steps.filter((step) => step.blocked).length
     const allowedCount = steps.length - blockedCount
 
     return NextResponse.json({
       runId,
-      model: openAiApiKey ? 'gpt-4.1-mini + rules' : 'rules-only (OPENAI_API_KEY not set)',
+      model: modelLabel,
       scenario: {
         id: scenario.id,
         title: scenario.title,
