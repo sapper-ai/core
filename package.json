@@ -6,10 +6,12 @@
   "packageManager": "pnpm@10.19.0",
   "license": "MIT",
   "workspaces": [
+    "apps/*",
     "packages/*"
   ],
   "scripts": {
     "build": "turbo build",
+    "dev:web": "pnpm --filter @sapper-ai/web dev",
     "test": "turbo test",
     "lint": "turbo lint"
   },

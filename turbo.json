@@ -3,7 +3,7 @@
   "globalDependencies": ["tsconfig.base.json"],
   "pipeline": {
     "build": {
-      "outputs": ["dist/**"],
+      "outputs": ["dist/**", ".next/**"],
       "dependsOn": ["^build"],
       "cache": true
     },
