@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 type DemoPreset = {
   id: string
@@ -157,6 +157,16 @@ const getRiskTone = (risk: number): string => {
   return 'bg-mint'
 }
 
+const getRiskStrokeTone = (risk: number): string => {
+  if (risk >= 0.7) {
+    return 'stroke-ember'
+  }
+  if (risk >= 0.35) {
+    return 'stroke-amber-500'
+  }
+  return 'stroke-mint'
+}
+
 const buildPipeline = (data: DetectionResponse): PipelineStep[] => {
   const intel = data.evidence.find((entry) => /threat|intel/i.test(entry.detectorId))
   const rules = data.evidence.find((entry) => /rule/i.test(entry.detectorId))
@@ -190,10 +200,59 @@ const buildPipeline = (data: DetectionResponse): PipelineStep[] => {
   ]
 }
 
+function CircularGauge({ value, label }: { value: number; label?: string }) {
+  const clamped = clampRisk(value)
+  const [animatedValue, setAnimatedValue] = useState(0)
+  const dasharray = 283
+  const dashoffset = dasharray * (1 - clampRisk(animatedValue))
+  const strokeTone = getRiskStrokeTone(clamped)
+
+  useEffect(() => {
+    const handle = window.requestAnimationFrame(() => {
+      setAnimatedValue(clamped)
+    })
+    return () => {
+      window.cancelAnimationFrame(handle)
+    }
+  }, [clamped])
+
+  return (
+    <div className="relative h-24 w-24">
+      <svg viewBox="0 0 100 100" className="h-full w-full">
+        <circle
+          r="45"
+          cx="50"
+          cy="50"
+          fill="none"
+          strokeWidth="10"
+          className="stroke-slate-200"
+        />
+        <circle
+          r="45"
+          cx="50"
+          cy="50"
+          fill="none"
+          strokeWidth="10"
+          strokeLinecap="round"
+          strokeDasharray={dasharray}
+          strokeDashoffset={dashoffset}
+          style={{ transition: 'stroke-dashoffset 0.8s ease' }}
+          className={`${strokeTone} origin-center -rotate-90`}
+        />
+      </svg>
+      <div className="pointer-events-none absolute inset-0 grid place-items-center">
+        <div className="grid place-items-center">
+          <p className="text-xl font-bold text-ink">{formatPercent(clamped)}</p>
+          {label && <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel/70">{label}</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function DetectionVisualization({ data }: { data: DetectionResponse }) {
   const pipeline = buildPipeline(data)
   const risk = clampRisk(data.risk)
-  const tone = getRiskTone(risk)
   const timeline = [
     {
       id: 'ingest',
@@ -214,59 +273,107 @@ function DetectionVisualization({ data }: { data: DetectionResponse }) {
 
   return (
     <div className="grid gap-4 rounded-xl border border-slate-200 bg-[#f8fbff] p-4">
-      <div className="grid gap-2">
-        <div className="flex items-end justify-between">
-          <p className="text-sm font-semibold text-ink">Risk Gauge</p>
-          <p className="text-xs font-semibold text-steel/80">{formatPercent(risk)}</p>
+      <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="grid gap-1">
+            <p className="text-sm font-semibold text-ink">Risk Gauge</p>
+            <p className="text-xs text-steel/80">최종 위험도 및 정책 판정 결과를 한눈에 확인합니다.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${
+                data.action === 'block' ? 'bg-ember text-white' : 'bg-mint text-white'
+              }`}
+            >
+              {data.action}
+            </span>
+            <span className="rounded-full bg-steel/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-steel">
+              conf {formatPercent(data.confidence)}
+            </span>
+          </div>
         </div>
-        <div className="h-2.5 w-full rounded-full bg-slate-200">
-          <div className={`${tone} h-2.5 rounded-full transition-all`} style={{ width: `${risk * 100}%` }} />
+
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <CircularGauge value={risk} label="risk" />
+          <div className="grid w-full gap-2 sm:max-w-[340px]">
+            <div className="grid gap-1 rounded-lg bg-[#f8fbff] p-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-steel">Signal</p>
+              <p className="text-xs text-steel/85">{data.reasons[0] ?? '탐지 사유 없음'}</p>
+            </div>
+            <div className="h-2 w-full rounded-full bg-slate-200">
+              <div className={`${getRiskTone(risk)} h-2 rounded-full transition-all`} style={{ width: `${risk * 100}%` }} />
+            </div>
+            <p className="text-[11px] text-steel/70">Risk {formatPercent(risk)} / Confidence {formatPercent(data.confidence)}</p>
+          </div>
         </div>
       </div>
 
       <div className="grid gap-2">
         <p className="text-sm font-semibold text-ink">Detection Pipeline</p>
-        <ol className="grid gap-2">
-          {pipeline.map((step, index) => (
-            <li key={step.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-steel">
-                  {index + 1}. {step.title}
-                </p>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] ${
-                    step.status === 'critical'
-                      ? 'bg-ember text-white'
-                      : step.status === 'warning'
-                        ? 'bg-amber-500 text-white'
-                        : 'bg-mint text-white'
-                  }`}
-                >
-                  {step.status}
-                </span>
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between sm:gap-2">
+            {pipeline.map((step, index) => (
+              <div key={step.id} className="flex items-center gap-2 sm:flex-1">
+                <div className="flex-1 rounded-xl border border-slate-200 bg-[#f8fbff] p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-steel">{step.title}</p>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${
+                        step.status === 'critical'
+                          ? 'bg-ember text-white'
+                          : step.status === 'warning'
+                            ? 'bg-amber-500 text-white'
+                            : 'bg-mint text-white'
+                      }`}
+                    >
+                      {step.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-steel/85">{step.detail}</p>
+                  <p className="mt-2 text-[11px] text-steel/70">
+                    Risk {formatPercent(step.risk)} · Confidence {formatPercent(step.confidence)}
+                  </p>
+                  <div className="mt-2 h-1.5 w-full rounded-full bg-slate-200">
+                    <div
+                      className={`${getRiskTone(step.risk)} h-1.5 rounded-full transition-all`}
+                      style={{ width: `${clampRisk(step.risk) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                {index < pipeline.length - 1 && (
+                  <div className="hidden h-full items-center justify-center sm:flex">
+                    <span className="rounded-full bg-steel/10 px-2 py-1 text-xs font-bold text-steel/70">→</span>
+                  </div>
+                )}
               </div>
-              <p className="mt-1 text-xs text-steel/85">{step.detail}</p>
-              <p className="mt-1 text-[11px] text-steel/75">
-                Risk {formatPercent(step.risk)} / Confidence {formatPercent(step.confidence)}
-              </p>
-            </li>
-          ))}
-          <li className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-steel">4. Decision</p>
-            <p className="mt-1 text-xs text-steel/85">DecisionEngine 최종 판정: {data.action.toUpperCase()}</p>
-          </li>
-        </ol>
+            ))}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-steel">DecisionEngine</p>
+            <p className="text-xs text-steel/85">최종 판정: {data.action.toUpperCase()}</p>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-2">
         <p className="text-sm font-semibold text-ink">Timeline</p>
-        <ol className="grid gap-1.5">
-          {timeline.map((entry) => (
-            <li key={entry.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <p className="text-xs font-bold uppercase tracking-[0.1em] text-steel">{entry.title}</p>
-              <p className="mt-1 text-xs text-steel/80">{entry.detail}</p>
-            </li>
-          ))}
+        <ol className="relative grid gap-2 pl-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-slate-200">
+          {timeline.map((entry, index) => {
+            const isTerminal = index === timeline.length - 1
+            return (
+              <li key={entry.id} className="relative rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <span
+                  className={`absolute left-3 top-4 h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 ${
+                    isTerminal ? 'border-ember bg-ember' : 'border-slate-300 bg-white'
+                  }`}
+                />
+                <p className="text-xs font-bold uppercase tracking-[0.1em] text-steel">{entry.title}</p>
+                <p className="mt-1 text-xs text-steel/80">{entry.detail}</p>
+              </li>
+            )
+          })}
         </ol>
       </div>
     </div>
@@ -951,22 +1058,47 @@ export default function HomePage() {
 
             {campaignResult && (
               <div className="grid gap-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-slate-200 bg-white p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-steel">Detection Rate</p>
-                    <p className="mt-1 text-2xl font-bold text-ink">{formatPercent(campaignResult.detectionRate)}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-steel">Blocked Cases</p>
-                    <p className="mt-1 text-2xl font-bold text-ink">
-                      {campaignResult.blockedCases}/{campaignResult.totalCases}
-                    </p>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
+                      <CircularGauge value={campaignResult.detectionRate} label="detect" />
+                      <div className="grid gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-steel">Campaign Stats</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-steel/10 px-3 py-1 text-[11px] font-semibold text-steel">
+                            Total {campaignResult.totalCases}
+                          </span>
+                          <span className="rounded-full bg-ember/10 px-3 py-1 text-[11px] font-semibold text-ember">
+                            Blocked {campaignResult.blockedCases}
+                          </span>
+                          <span className="rounded-full bg-signal/10 px-3 py-1 text-[11px] font-semibold text-signal">
+                            Model {campaignResult.model}
+                          </span>
+                        </div>
+                        <p className="text-xs text-steel/75">
+                          Run ID: <span className="font-semibold text-steel">{campaignResult.runId}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 rounded-xl border border-slate-200 bg-[#f8fbff] p-3 sm:min-w-[220px]">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-steel">Blocked / Total</p>
+                      <p className="text-2xl font-bold text-ink">
+                        {campaignResult.blockedCases}/{campaignResult.totalCases}
+                      </p>
+                      <div className="h-2 w-full rounded-full bg-slate-200">
+                        <div
+                          className="h-2 rounded-full bg-ember"
+                          style={{
+                            width: `${
+                              (campaignResult.totalCases > 0 ? campaignResult.blockedCases / campaignResult.totalCases : 0) * 100
+                            }%`,
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <p className="text-xs text-steel/75">
-                  Run ID: <span className="font-semibold text-steel">{campaignResult.runId}</span> / Model:{' '}
-                  <span className="font-semibold text-steel">{campaignResult.model}</span>
-                </p>
               </div>
             )}
           </div>
@@ -993,8 +1125,13 @@ export default function HomePage() {
                             {item.blocked}/{item.total}
                           </span>
                         </div>
-                        <div className="h-2 w-full rounded-full bg-slate-200">
-                          <div className="h-2 rounded-full bg-signal" style={{ width: `${ratio * 100}%` }} />
+                        <div className="flex items-center gap-3">
+                          <div className="h-2.5 w-full rounded-full bg-slate-200">
+                            <div className="h-2.5 rounded-full bg-signal transition-all" style={{ width: `${ratio * 100}%` }} />
+                          </div>
+                          <span className="w-14 text-right text-[11px] font-semibold tabular-nums text-steel/80">
+                            {formatPercent(ratio)}
+                          </span>
                         </div>
                       </div>
                     )
@@ -1013,8 +1150,13 @@ export default function HomePage() {
                             {item.blocked}/{item.total}
                           </span>
                         </div>
-                        <div className="h-2 w-full rounded-full bg-slate-200">
-                          <div className="h-2 rounded-full bg-ember" style={{ width: `${ratio * 100}%` }} />
+                        <div className="flex items-center gap-3">
+                          <div className="h-2.5 w-full rounded-full bg-slate-200">
+                            <div className="h-2.5 rounded-full bg-ember transition-all" style={{ width: `${ratio * 100}%` }} />
+                          </div>
+                          <span className="w-14 text-right text-[11px] font-semibold tabular-nums text-steel/80">
+                            {formatPercent(ratio)}
+                          </span>
                         </div>
                       </div>
                     )
@@ -1030,6 +1172,78 @@ export default function HomePage() {
                       </li>
                     ))}
                   </ul>
+                </div>
+
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-ink">Cases</p>
+                    <p className="text-xs text-steel/70">{campaignResult.cases.length}건</p>
+                  </div>
+
+                  <div className="max-h-80 overflow-auto rounded-xl border border-slate-200 bg-white">
+                    <div className="min-w-[860px]">
+                      <div className="sticky top-0 z-10 grid grid-cols-[minmax(260px,1.2fr)_160px_120px_110px_1fr] gap-3 border-b border-slate-200 bg-[#f8fbff] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-steel">
+                        <div>Label</div>
+                        <div>Type</div>
+                        <div>Severity</div>
+                        <div>Action</div>
+                        <div>Risk</div>
+                      </div>
+
+                      <ul className="divide-y divide-slate-200">
+                        {campaignResult.cases.map((entry) => {
+                          const riskValue = clampRisk(entry.decision.risk)
+                          const severityTone =
+                            entry.severity === 'critical'
+                              ? 'bg-ember text-white'
+                              : entry.severity === 'high'
+                                ? 'bg-ember/15 text-ember'
+                                : entry.severity === 'medium'
+                                  ? 'bg-amber-500/15 text-amber-700'
+                                  : 'bg-mint/15 text-mint'
+
+                          return (
+                            <li
+                              key={entry.id}
+                              className="grid grid-cols-[minmax(260px,1.2fr)_160px_120px_110px_1fr] gap-3 px-4 py-3 text-xs"
+                            >
+                              <div className="grid gap-1">
+                                <p className="font-semibold text-ink">{entry.label}</p>
+                                <p className="text-[11px] text-steel/70">{entry.decision.reasons[0] ?? '탐지 사유 없음'}</p>
+                              </div>
+                              <div className="flex items-center text-steel/85">{typeLabels[entry.type] ?? entry.type}</div>
+                              <div className="flex items-center">
+                                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${severityTone}`}>
+                                  {severityLabels[entry.severity] ?? entry.severity}
+                                </span>
+                              </div>
+                              <div className="flex items-center">
+                                <span
+                                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${
+                                    entry.decision.action === 'block' ? 'bg-ember text-white' : 'bg-mint text-white'
+                                  }`}
+                                >
+                                  {entry.decision.action}
+                                </span>
+                              </div>
+                              <div className="grid gap-1">
+                                <div className="flex items-center justify-between text-[11px] text-steel/75">
+                                  <span className="font-semibold tabular-nums">{formatPercent(riskValue)}</span>
+                                  <span className="tabular-nums">conf {formatPercent(entry.decision.confidence)}</span>
+                                </div>
+                                <div className="h-2 w-full rounded-full bg-slate-200">
+                                  <div
+                                    className={`${getRiskTone(riskValue)} h-2 rounded-full transition-all`}
+                                    style={{ width: `${riskValue * 100}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
