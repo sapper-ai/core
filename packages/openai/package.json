@@ -12,10 +12,10 @@
   ],
   "license": "MIT",
   "author": "SapperAI",
-  "homepage": "https://github.com/sapper-ai/sapperai#readme",
+  "homepage": "https://github.com/sapper-ai/core#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sapper-ai/sapperai.git",
+    "url": "https://github.com/sapper-ai/core.git",
     "directory": "packages/openai"
   },
   "main": "dist/index.js",
