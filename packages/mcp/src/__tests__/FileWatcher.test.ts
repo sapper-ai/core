@@ -15,7 +15,7 @@ const enforcePolicy: Policy = {
   failOpen: true,
 }
 
-async function waitFor(condition: () => boolean, timeoutMs = 5000): Promise<void> {
+async function waitFor(condition: () => boolean, timeoutMs = 10000): Promise<void> {
   const startedAt = Date.now()
   while (!condition()) {
     if (Date.now() - startedAt > timeoutMs) {
@@ -37,7 +37,7 @@ describe('FileWatcher', () => {
     }
   })
 
-  it('quarantines malicious watched files', async () => {
+  it('quarantines malicious watched files', { timeout: 15000 }, async () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'sapper-filewatch-'))
     tempDirs.push(rootDir)
 
@@ -60,7 +60,10 @@ describe('FileWatcher', () => {
     await waitFor(() => !existsSync(sourceFile))
 
     const indexPath = join(quarantineDir, 'index.json')
-    await waitFor(() => existsSync(indexPath))
+    await waitFor(() => {
+      if (!existsSync(indexPath)) return false
+      try { JSON.parse(readFileSync(indexPath, 'utf8')); return true } catch { return false }
+    })
 
     const index = JSON.parse(readFileSync(indexPath, 'utf8')) as {
       records: Array<{ originalPath: string; quarantinedPath: string }>
@@ -73,7 +76,7 @@ describe('FileWatcher', () => {
     await watcher.close()
   })
 
-  it('quarantines via explicit blocklist policy match', async () => {
+  it('quarantines via explicit blocklist policy match', { timeout: 15000 }, async () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'sapper-filewatch-policy-'))
     tempDirs.push(rootDir)
 
@@ -101,7 +104,10 @@ describe('FileWatcher', () => {
     await waitFor(() => !existsSync(sourceFile))
 
     const indexPath = join(quarantineDir, 'index.json')
-    await waitFor(() => existsSync(indexPath))
+    await waitFor(() => {
+      if (!existsSync(indexPath)) return false
+      try { JSON.parse(readFileSync(indexPath, 'utf8')); return true } catch { return false }
+    })
 
     const index = JSON.parse(readFileSync(indexPath, 'utf8')) as {
       records: Array<{ originalPath: string }>

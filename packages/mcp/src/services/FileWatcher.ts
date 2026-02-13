@@ -128,6 +128,12 @@ export class FileWatcher {
       this.watcher.once('ready', onReady)
       this.watcher.once('error', onError)
     })
+
+    // Allow the native filesystem watcher (FSEvents on macOS) to fully
+    // initialise after chokidar emits 'ready'. Without this settling
+    // delay, events for files created immediately after start() can be
+    // missed intermittently.
+    await new Promise<void>((resolve) => setTimeout(resolve, 50))
   }
 
   async close(): Promise<void> {
