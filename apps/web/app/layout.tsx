@@ -1,13 +1,13 @@
 import type { Metadata } from 'next'
-import { Space_Grotesk, Noto_Sans_KR } from 'next/font/google'
+import { Outfit, Noto_Sans_KR } from 'next/font/google'
 import type { ReactNode } from 'react'
 
 import './globals.css'
 
-const heading = Space_Grotesk({
+const heading = Outfit({
   subsets: ['latin'],
   variable: '--font-heading',
-  weight: ['500', '700'],
+  weight: ['500', '600', '700'],
 })
 
 const body = Noto_Sans_KR({

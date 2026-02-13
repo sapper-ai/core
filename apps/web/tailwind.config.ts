@@ -5,15 +5,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: '#11131f',
-        steel: '#1d2335',
-        frost: '#f4f8ff',
-        mint: '#0fb889',
-        ember: '#ff6a3d',
-        signal: '#2a7fff',
+        ink: '#0a0a0a',
+        steel: '#4b5563',
+        frost: '#fafafa',
+        mint: '#22c55e',
+        ember: '#ef4444',
+        signal: '#3b82f6',
+        warn: '#f59e0b',
+        border: '#e5e7eb',
+        surface: '#ffffff',
+        muted: '#f3f4f6',
       },
       boxShadow: {
-        aura: '0 22px 80px rgba(29, 35, 53, 0.18)',
+        subtle: '0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06)',
+        lifted: '0 4px 24px -4px rgba(0, 0, 0, 0.08)',
       },
     },
   },
