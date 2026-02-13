@@ -2,22 +2,18 @@ import { NextResponse } from 'next/server'
 
 import { AuditLogger, createDetectors, DecisionEngine, Guard, PolicyManager } from '@sapper-ai/core'
 import type { Policy, ToolCall } from '@sapper-ai/types'
+import { ZodError } from 'zod'
 
-import { attackCases } from '../shared/attack-cases'
-
-import { getCachedEntries } from '../shared/intel-store'
-import { getGuard } from '../shared/guard-factory'
-import { getAuditLogPath } from '../shared/paths'
+import { attackCases } from '../../../shared/attack-cases'
 
 export const runtime = 'nodejs'
-
-type Severity = 'low' | 'medium' | 'high' | 'critical'
+export const dynamic = 'force-dynamic'
 
 type CaseResult = {
   id: string
   label: string
   type: (typeof attackCases)[number]['type']
-  severity: Severity
+  severity: (typeof attackCases)[number]['severity']
   decision: {
     action: 'allow' | 'block'
     risk: number
@@ -32,35 +28,23 @@ type DistributionItem = {
   blocked: number
 }
 
-const openAiApiKey = process.env.OPENAI_API_KEY?.trim()
-
-const rawPolicy: Policy = {
-  mode: 'enforce',
-  defaultAction: 'allow',
-  failOpen: true,
-  detectors: openAiApiKey ? ['rules', 'llm'] : ['rules'],
-  thresholds: {
-    riskThreshold: 0.7,
-    blockMinConfidence: 0.65,
-  },
-  ...(openAiApiKey
-    ? {
-        llm: {
-          provider: 'openai' as const,
-          apiKey: openAiApiKey,
-          model: 'gpt-4.1-mini',
-        },
-      }
-    : {}),
+type PolicyTestResponse = {
+  runId: string
+  model: string
+  totalCases: number
+  blockedCases: number
+  detectionRate: number
+  typeDistribution: DistributionItem[]
+  severityDistribution: DistributionItem[]
+  topReasons: string[]
+  cases: CaseResult[]
 }
 
-const policy = new PolicyManager().loadFromObject(rawPolicy)
-const auditLogPath = getAuditLogPath()
-
-async function createDefaultGuard(): Promise<Guard> {
-  const threatIntelEntries = await getCachedEntries()
-  const detectors = createDetectors({ policy, threatIntelEntries })
-  return new Guard(new DecisionEngine(detectors), new AuditLogger({ filePath: auditLogPath }), policy)
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message
+  }
+  return '정책 테스트 중 오류가 발생했습니다.'
 }
 
 function summarizeReasons(results: CaseResult[]): string[] {
@@ -78,25 +62,19 @@ function summarizeReasons(results: CaseResult[]): string[] {
     .map(([reason, count]) => `${reason} (${count})`)
 }
 
-type CampaignRequest = {
-  useDefaultPolicy?: boolean
-}
-
 export async function POST(request: Request): Promise<NextResponse> {
   try {
-    let payload: unknown = null
-    try {
-      payload = await request.json()
-    } catch {
-      payload = null
+    const payload = (await request.json()) as { policy?: Policy }
+    if (!payload?.policy) {
+      return NextResponse.json({ error: 'policy가 필요합니다.' }, { status: 400 })
     }
 
-    const useDefaultPolicy =
-      !!payload && typeof payload === 'object' && (payload as CampaignRequest).useDefaultPolicy === true
+    const manager = new PolicyManager()
+    const policy = manager.loadFromObject(payload.policy)
+    const detectors = createDetectors({ policy })
+    const guard = new Guard(new DecisionEngine(detectors), new AuditLogger(), policy)
 
-    const guard = useDefaultPolicy ? await createDefaultGuard() : (await getGuard()).guard
-
-    const runId = `campaign-${Date.now().toString(36)}`
+    const runId = `policy-test-${Date.now().toString(36)}`
     const results: CaseResult[] = []
 
     for (const attackCase of attackCases) {
@@ -128,27 +106,30 @@ export async function POST(request: Request): Promise<NextResponse> {
     const blockedCases = results.filter((entry) => entry.decision.action === 'block').length
     const detectionRate = results.length > 0 ? blockedCases / results.length : 0
 
-    const typeDistribution: DistributionItem[] = [
+    const typeKeys = [
       'prompt_injection',
       'command_injection',
       'path_traversal',
       'data_exfiltration',
       'code_injection',
-    ].map((key) => ({
+    ] as const
+
+    const typeDistribution: DistributionItem[] = typeKeys.map((key) => ({
       key,
       total: attackCases.filter((item) => item.type === key).length,
       blocked: results.filter((result) => result.type === key && result.decision.action === 'block').length,
     }))
 
-    const severityDistribution: DistributionItem[] = ['low', 'medium', 'high', 'critical'].map((key) => ({
+    const severityKeys = ['low', 'medium', 'high', 'critical'] as const
+    const severityDistribution: DistributionItem[] = severityKeys.map((key) => ({
       key,
       total: attackCases.filter((item) => item.severity === key).length,
       blocked: results.filter((result) => result.severity === key && result.decision.action === 'block').length,
     }))
 
-    return NextResponse.json({
+    const response: PolicyTestResponse = {
       runId,
-      model: openAiApiKey ? 'rules + gpt-4.1-mini' : 'rules-only',
+      model: policy.detectors?.includes('llm') ? 'rules + llm' : 'rules-only',
       totalCases: results.length,
       blockedCases,
       detectionRate,
@@ -156,9 +137,19 @@ export async function POST(request: Request): Promise<NextResponse> {
       severityDistribution,
       topReasons: summarizeReasons(results),
       cases: results,
-    })
+    }
+
+    return NextResponse.json(response)
   } catch (error) {
-    const message = error instanceof Error ? error.message : '캠페인 실행 중 오류가 발생했습니다.'
-    return NextResponse.json({ error: message }, { status: 500 })
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        {
+          error: 'Invalid policy',
+          issues: error.issues,
+        },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 })
   }
 }

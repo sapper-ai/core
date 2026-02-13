@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server'
 
 import { Agent, InputGuardrailTripwireTriggered, run, tool } from '@openai/agents'
 import type { InputGuardrail, ToolInputGuardrailDefinition } from '@openai/agents'
-import { AuditLogger, createDetectors, DecisionEngine, Guard, PolicyManager } from '@sapper-ai/core'
+import type { Guard } from '@sapper-ai/core'
 import { createSapperInputGuardrail, createSapperToolInputGuardrail } from '@sapper-ai/openai'
 import type { Decision, Policy, ToolCall } from '@sapper-ai/types'
 import { z } from 'zod'
+
+import { getGuard } from '../shared/guard-factory'
 
 export const runtime = 'nodejs'
 
@@ -43,30 +45,6 @@ type AgentStepResult = {
 }
 
 const openAiApiKey = process.env.OPENAI_API_KEY?.trim()
-
-const rawPolicy: Policy = {
-  mode: 'enforce',
-  defaultAction: 'allow',
-  failOpen: true,
-  detectors: openAiApiKey ? ['rules', 'llm'] : ['rules'],
-  thresholds: {
-    riskThreshold: 0.7,
-    blockMinConfidence: 0.65,
-  },
-  ...(openAiApiKey
-    ? {
-        llm: {
-          provider: 'openai' as const,
-          apiKey: openAiApiKey,
-          model: 'gpt-4.1-mini',
-        },
-      }
-    : {}),
-}
-
-const policy = new PolicyManager().loadFromObject(rawPolicy)
-const detectors = createDetectors({ policy })
-const guard = new Guard(new DecisionEngine(detectors), new AuditLogger(), policy)
 
 function safeToolName(value: string): string {
   const sanitized = value.replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -252,6 +230,7 @@ function summarizeArguments(value: Record<string, unknown>): string {
 async function simulateScenario(options: {
   scenario: AgentScenario
   executeBlocked: boolean
+  guard: Guard
 }): Promise<{ steps: AgentStepResult[]; halted: boolean }> {
   const steps: AgentStepResult[] = []
   let halted = false
@@ -267,7 +246,7 @@ async function simulateScenario(options: {
       },
     }
 
-    const decision = await guard.preTool(toolCall)
+    const decision = await options.guard.preTool(toolCall)
     const blocked = decision.action === 'block'
     const analysis = await generateAnalysis(step, decision)
 
@@ -295,9 +274,10 @@ async function simulateScenario(options: {
 
 async function runAgentSdkScenario(options: {
   scenario: AgentScenario
+  policy: Policy
 }): Promise<{ modelLabel: string } | { modelLabel: string; inputGuardrailTrip: AgentStepResult }> {
   const toolInputGuardrail =
-    createSapperToolInputGuardrail('sapper-tool-input', policy) as unknown as ToolInputGuardrailDefinition
+    createSapperToolInputGuardrail('sapper-tool-input', options.policy) as unknown as ToolInputGuardrailDefinition
 
   const toolNameMap = new Map<string, string>()
   const tools = options.scenario.steps.map((step) => {
@@ -326,7 +306,7 @@ async function runAgentSdkScenario(options: {
     instructions:
       'You are a deterministic demo agent. Execute the scenario steps in order by calling each tool with the provided arguments. Do not add extra steps.',
     tools,
-    inputGuardrails: [createSapperInputGuardrail('sapper-input', policy) as unknown as InputGuardrail],
+    inputGuardrails: [createSapperInputGuardrail('sapper-input', options.policy) as unknown as InputGuardrail],
   })
 
   const runInput = JSON.stringify(
@@ -400,6 +380,7 @@ async function runAgentSdkScenario(options: {
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
+    const { guard, policy } = await getGuard()
     const payload = (await request.json()) as AgentDemoRequest
     const scenario = scenarios[payload.scenarioId ?? 'malicious-install']
     const executeBlocked = payload.executeBlocked === true
@@ -411,14 +392,14 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     let inputTripStep: AgentStepResult | null = null
     if (openAiApiKey) {
-      const sdkResult = await runAgentSdkScenario({ scenario })
+      const sdkResult = await runAgentSdkScenario({ scenario, policy })
       modelLabel = sdkResult.modelLabel
       if ('inputGuardrailTrip' in sdkResult) {
         inputTripStep = sdkResult.inputGuardrailTrip
       }
     }
 
-    const simulation = await simulateScenario({ scenario, executeBlocked })
+    const simulation = await simulateScenario({ scenario, executeBlocked, guard })
     const steps = inputTripStep ? [inputTripStep, ...simulation.steps] : simulation.steps
     const halted = inputTripStep ? true : simulation.halted
 

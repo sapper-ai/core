@@ -1,24 +1,10 @@
 import { NextResponse } from 'next/server'
 
-import { AuditLogger, DecisionEngine, Guard, PolicyManager, RulesDetector } from '@sapper-ai/core'
-import type { Policy, ToolCall, ToolResult } from '@sapper-ai/types'
+import type { ToolCall, ToolResult } from '@sapper-ai/types'
+
+import { getGuard } from '../shared/guard-factory'
 
 export const runtime = 'nodejs'
-
-const rawPolicy: Policy = {
-  mode: 'enforce',
-  defaultAction: 'allow',
-  failOpen: true,
-  detectors: ['rules'],
-  thresholds: {
-    riskThreshold: 0.7,
-    blockMinConfidence: 0.65,
-  },
-}
-
-const policy = new PolicyManager().loadFromObject(rawPolicy)
-const engine = new DecisionEngine([new RulesDetector()])
-const guard = new Guard(engine, new AuditLogger(), policy)
 
 type DetectRequest = {
   toolName?: string
@@ -29,6 +15,7 @@ type DetectRequest = {
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
+    const { guard } = await getGuard()
     const payload = (await request.json()) as DetectRequest
     const toolName = payload.toolName?.trim()
 
