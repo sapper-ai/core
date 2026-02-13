@@ -15,14 +15,10 @@ SapperAI provides **zero-dependency threat detection** with:
 
 ## Quick Start
 
-### Option 1: Single Install (Recommended)
-
 ```bash
 npm install sapper-ai
 # or
 pnpm install sapper-ai
-
-npx sapper-ai init
 ```
 
 ```ts
@@ -30,53 +26,6 @@ import { createGuard } from 'sapper-ai'
 
 const guard = createGuard()
 const decision = await guard.check({ toolName: 'shell', arguments: { cmd: 'ls' } })
-```
-
-### Option 2: MCP Proxy (No Code)
-
-```bash
-npm install @sapper-ai/mcp
-# or
-pnpm install @sapper-ai/mcp
-
-# Wrap any MCP server
-sapperai-proxy -- npx @modelcontextprotocol/server-example
-
-# Watch local skill/plugin installs and auto-quarantine blocked files
-sapperai-proxy watch
-
-# Inspect or restore quarantine
-sapperai-proxy quarantine list
-sapperai-proxy quarantine restore <id>
-```
-
-### Option 3: OpenAI Agents Integration
-
-```bash
-npm install @sapper-ai/openai
-# or
-pnpm install @sapper-ai/openai
-```
-
-```typescript
-import { createToolInputGuardrail } from '@sapper-ai/openai'
-import { RulesDetector, DecisionEngine } from '@sapper-ai/core'
-import { Agent } from '@openai/agents'
-
-const detector = new RulesDetector()
-const engine = new DecisionEngine([detector])
-
-const inputGuardrail = createToolInputGuardrail(engine, {
-  mode: 'enforce',
-  defaultAction: 'allow',
-  failOpen: true,
-})
-
-const agent = new Agent({
-  model: 'gpt-4',
-  tools: [myTool],
-  inputGuardrail,
-})
 ```
 
 ## Architecture
