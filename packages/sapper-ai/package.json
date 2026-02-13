@@ -1,8 +1,14 @@
 {
   "name": "sapper-ai",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "AI security guardrails - single install, sensible defaults",
-  "keywords": ["security", "ai", "guardrails", "prompt-injection", "detection"],
+  "keywords": [
+    "security",
+    "ai",
+    "guardrails",
+    "prompt-injection",
+    "detection"
+  ],
   "license": "MIT",
   "author": "SapperAI",
   "homepage": "https://github.com/sapper-ai/sapperai#readme",
@@ -26,7 +32,9 @@
       "default": "./dist/presets.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },
@@ -44,8 +52,12 @@
     "@sapper-ai/openai": ">=0.2.0"
   },
   "peerDependenciesMeta": {
-    "@sapper-ai/mcp": { "optional": true },
-    "@sapper-ai/openai": { "optional": true }
+    "@sapper-ai/mcp": {
+      "optional": true
+    },
+    "@sapper-ai/openai": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
