@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { readFile, readdir, stat } from 'node:fs/promises'
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 
@@ -14,7 +14,7 @@ import {
   QuarantineManager,
   Scanner,
 } from '@sapper-ai/core'
-import type { Decision, Policy } from '@sapper-ai/types'
+import type { Decision, LlmConfig, Policy } from '@sapper-ai/types'
 
 import { presets } from './presets'
 
@@ -24,17 +24,47 @@ export interface ScanOptions {
   deep?: boolean
   system?: boolean
   scopeLabel?: string
+  ai?: boolean
+  report?: boolean
+  noSave?: boolean
 }
 
 interface ScanFinding {
   filePath: string
   decision: Decision
   quarantinedId?: string
+  aiAnalysis?: string | null
 }
 
 interface ScanFileResult {
   scanned: boolean
-  finding?: ScanFinding
+  decision?: Decision
+  quarantinedId?: string
+}
+
+export interface ScanResult {
+  version: '1.0'
+  timestamp: string
+  scope: string
+  target: string
+  ai: boolean
+  summary: {
+    totalFiles: number
+    scannedFiles: number
+    skippedFiles: number
+    threats: number
+  }
+  findings: Array<{
+    filePath: string
+    risk: number
+    confidence: number
+    action: string
+    patterns: string[]
+    reasons: string[]
+    snippet: string
+    detectors: string[]
+    aiAnalysis: string | null
+  }>
 }
 
 const CONFIG_FILE_NAMES = ['sapperai.config.yaml', 'sapperai.config.yml']
@@ -313,10 +343,16 @@ async function scanFile(
     }
   }
 
+  let bestDecision: Decision | null = null
   let bestThreat: Decision | null = null
 
   for (const target of targets) {
     const decision = await scanner.scanTool(target.id, target.surface, policy, detectors)
+
+    if (!bestDecision || decision.risk > bestDecision.risk) {
+      bestDecision = decision
+    }
+
     if (!isThreat(decision, policy)) {
       continue
     }
@@ -328,23 +364,112 @@ async function scanFile(
     if (fix && decision.action === 'block') {
       try {
         const record = await quarantineManager.quarantine(filePath, decision)
-        return { scanned: true, finding: { filePath, decision, quarantinedId: record.id } }
+        return { scanned: true, decision: bestDecision ?? decision, quarantinedId: record.id }
       } catch {
       }
     }
   }
 
-  if (!bestThreat) {
-    return { scanned: true }
+  if (!bestDecision) {
+    return { scanned: false }
   }
 
-  return { scanned: true, finding: { filePath, decision: bestThreat } }
+  return { scanned: true, decision: bestThreat ?? bestDecision }
+}
+
+function uniq<T>(values: T[]): T[] {
+  return Array.from(new Set(values))
+}
+
+function extractPatternsFromReasons(reasons: string[]): string[] {
+  const prefix = 'Detected pattern: '
+  const patterns: string[] = []
+  for (const r of reasons) {
+    if (r.startsWith(prefix)) {
+      patterns.push(r.slice(prefix.length))
+    }
+  }
+  return patterns
+}
+
+function toDetectorsList(decision: Decision): string[] {
+  return uniq(decision.evidence.map((e) => e.detectorId))
+}
+
+function truncateSnippet(text: string, maxChars: number): string {
+  if (text.length <= maxChars) {
+    return text
+  }
+  return text.slice(0, maxChars)
+}
+
+async function buildScanResult(params: {
+  scope: string
+  target: string
+  ai: boolean
+  totalFiles: number
+  scannedFiles: number
+  skippedFiles: number
+  threats: number
+  findings: ScanFinding[]
+}): Promise<ScanResult> {
+  const timestamp = new Date().toISOString()
+
+  const findings = await Promise.all(
+    params.findings.map(async (f) => {
+      const raw = await readFileIfPresent(f.filePath)
+      const snippet = raw ? truncateSnippet(raw, 400) : ''
+
+      const reasons = f.decision.reasons
+      const patterns = extractPatternsFromReasons(reasons)
+      const detectors = toDetectorsList(f.decision)
+
+      return {
+        filePath: f.filePath,
+        risk: f.decision.risk,
+        confidence: f.decision.confidence,
+        action: f.decision.action,
+        patterns,
+        reasons,
+        snippet,
+        detectors,
+        aiAnalysis: f.aiAnalysis ?? null,
+      }
+    })
+  )
+
+  return {
+    version: '1.0',
+    timestamp,
+    scope: params.scope,
+    target: params.target,
+    ai: params.ai,
+    summary: {
+      totalFiles: params.totalFiles,
+      scannedFiles: params.scannedFiles,
+      skippedFiles: params.skippedFiles,
+      threats: params.threats,
+    },
+    findings,
+  }
 }
 
 export async function runScan(options: ScanOptions = {}): Promise<number> {
   const cwd = process.cwd()
   const policy = resolvePolicy(cwd)
   const fix = options.fix === true
+
+  const aiEnabled = options.ai === true
+  let llmConfig: LlmConfig | null = null
+
+  if (aiEnabled) {
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) {
+      console.log('\n  Error: OPENAI_API_KEY environment variable is required for --ai mode.\n')
+      return 1
+    }
+    llmConfig = { provider: 'openai', apiKey, model: 'gpt-4.1-mini' }
+  }
 
   const deep = options.system ? true : options.deep !== false
   const targets =
@@ -355,7 +480,7 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
         : [cwd]
 
   const scanner = new Scanner()
-  const detectors = createDetectors({ policy })
+  const detectors = createDetectors({ policy, preferredDetectors: ['rules'] })
   const quarantineDir = process.env.SAPPERAI_QUARANTINE_DIR
   const quarantineManager = quarantineDir ? new QuarantineManager({ quarantineDir }) : new QuarantineManager()
 
@@ -385,7 +510,13 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
   console.log(`  Collecting files...  ${files.length} files found`)
   console.log()
 
-  const findings: ScanFinding[] = []
+  if (aiEnabled) {
+    console.log('  Phase 1/2: Rules scan')
+    console.log()
+  }
+
+  const scannedFindings: ScanFinding[] = []
+  let scannedFiles = 0
 
   const total = files.length
   const progressWidth = Math.max(10, Math.min(30, (process.stdout.columns ?? 80) - 30))
@@ -407,8 +538,9 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
     }
 
     const result = await scanFile(filePath, policy, scanner, detectors, fix, quarantineManager)
-    if (result.finding) {
-      findings.push(result.finding)
+    if (result.scanned && result.decision) {
+      scannedFiles += 1
+      scannedFindings.push({ filePath, decision: result.decision, quarantinedId: result.quarantinedId })
     }
   }
 
@@ -416,31 +548,159 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
     process.stdout.write('\x1b[2A\x1b[2K\r\x1b[1B\x1b[2K\r')
   }
 
-  if (findings.length === 0) {
-    const msg = `  ✓ All clear — ${total} files scanned, 0 threats detected`
+  if (aiEnabled && llmConfig) {
+    const suspiciousFindings = scannedFindings.filter((f) => f.decision.risk >= 0.5)
+    const maxAiFiles = 50
+
+    if (suspiciousFindings.length > 0) {
+      const aiTargets = suspiciousFindings.slice(0, maxAiFiles)
+      if (suspiciousFindings.length > maxAiFiles) {
+        console.log(`  Note: AI scan limited to ${maxAiFiles} files (${suspiciousFindings.length} suspicious)`) 
+      }
+
+      console.log()
+      console.log(`  Phase 2/2: AI deep scan (${aiTargets.length} files)`) 
+      console.log()
+
+      const detectorsList = (policy.detectors ?? ['rules']).slice()
+      if (!detectorsList.includes('llm')) {
+        detectorsList.push('llm')
+      }
+
+      const aiPolicy: Policy = { ...policy, llm: llmConfig, detectors: detectorsList }
+      const aiDetectors = createDetectors({ policy: aiPolicy, preferredDetectors: ['rules', 'llm'] })
+
+      for (let i = 0; i < aiTargets.length; i += 1) {
+        const finding = aiTargets[i]!
+
+        if (isTTY) {
+          const bar = renderProgressBar(i + 1, aiTargets.length, progressWidth)
+          const label = '  Analyzing: '
+          const maxPath = Math.max(10, (process.stdout.columns ?? 80) - stripAnsi(bar).length - label.length)
+          const scanning = `${label}${truncateToWidth(finding.filePath, maxPath)}`
+          if (i === 0) {
+            process.stdout.write(`${bar}\n${scanning}\n`)
+          } else {
+            process.stdout.write(`\x1b[2A\x1b[2K\r${bar}\n\x1b[2K\r${scanning}\n`)
+          }
+        }
+
+        try {
+          const raw = await readFileIfPresent(finding.filePath)
+          if (!raw) continue
+          const surface = normalizeSurfaceText(raw)
+          const targetType = classifyTargetType(finding.filePath)
+          const id = `${targetType}:${buildEntryName(finding.filePath)}`
+          const aiDecision = await scanner.scanTool(id, surface, aiPolicy, aiDetectors)
+
+          const mergedReasons = uniq([...finding.decision.reasons, ...aiDecision.reasons])
+          const existingEvidence = finding.decision.evidence
+          const mergedEvidence = [...existingEvidence]
+          for (const ev of aiDecision.evidence) {
+            if (!mergedEvidence.some((e) => e.detectorId === ev.detectorId)) {
+              mergedEvidence.push(ev)
+            }
+          }
+
+          const nextDecision = {
+            ...finding.decision,
+            reasons: mergedReasons,
+            evidence: mergedEvidence,
+          }
+
+          if (aiDecision.risk > finding.decision.risk) {
+            finding.decision = {
+              ...nextDecision,
+              action: aiDecision.action,
+              risk: aiDecision.risk,
+              confidence: aiDecision.confidence,
+            }
+          } else {
+            finding.decision = nextDecision
+          }
+
+          finding.aiAnalysis =
+            aiDecision.reasons.find((r) => !r.startsWith('Detected pattern:')) ?? null
+        } catch {
+        }
+      }
+
+      if (isTTY && aiTargets.length > 0) {
+        process.stdout.write('\x1b[2A\x1b[2K\r\x1b[1B\x1b[2K\r')
+      }
+    }
+  }
+
+  const skippedFiles = total - scannedFiles
+  const threats = scannedFindings.filter((f) => isThreat(f.decision, policy))
+
+  const scanResult = await buildScanResult({
+    scope: scopeLabel,
+    target: targets.join(', '),
+    ai: aiEnabled,
+    totalFiles: total,
+    scannedFiles,
+    skippedFiles,
+    threats: threats.length,
+    findings: scannedFindings,
+  })
+
+  if (options.noSave !== true) {
+    const scanDir = join(homedir(), '.sapperai', 'scans')
+    await mkdir(scanDir, { recursive: true })
+    const filename = `${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+    const savedPath = join(scanDir, filename)
+    await writeFile(savedPath, JSON.stringify(scanResult, null, 2), 'utf8')
+    console.log(`  Saved to ${savedPath}`)
+    console.log()
+  }
+
+  if (threats.length === 0) {
+    const msg = `  ✓ All clear — ${scannedFiles} files scanned, 0 threats detected`
     console.log(color ? `${GREEN}${msg}${RESET}` : msg)
     console.log()
-    return 0
+  } else {
+    const warn = `  ⚠ ${scannedFiles} files scanned, ${threats.length} threats detected`
+    console.log(color ? `${RED}${warn}${RESET}` : warn)
+    console.log()
+
+    const tableLines = renderFindingsTable(threats, {
+      cwd,
+      columns: process.stdout.columns ?? 80,
+      color,
+    })
+    for (const line of tableLines) {
+      console.log(line)
+    }
+    console.log()
+
+    if (!fix) {
+      console.log("  Run 'npx sapper-ai scan --fix' to quarantine blocked files.")
+      console.log()
+    }
   }
 
-  const warn = `  ⚠ ${total} files scanned, ${findings.length} threats detected`
-  console.log(color ? `${RED}${warn}${RESET}` : warn)
-  console.log()
+  if (options.report) {
+    const { generateHtmlReport } = await import('./report')
+    const html = generateHtmlReport(scanResult)
+    const reportPath = join(process.cwd(), 'sapper-report.html')
+    await writeFile(reportPath, html, 'utf8')
+    console.log(`  Report saved to ${reportPath}`)
 
-  const tableLines = renderFindingsTable(findings, {
-    cwd,
-    columns: process.stdout.columns ?? 80,
-    color,
-  })
-  for (const line of tableLines) {
-    console.log(line)
-  }
-  console.log()
+    try {
+      const { execFile } = await import('node:child_process')
 
-  if (!fix) {
-    console.log("  Run 'npx sapper-ai scan --fix' to quarantine blocked files.")
+      if (process.platform === 'win32') {
+        execFile('cmd', ['/c', 'start', '', reportPath])
+      } else {
+        const openCmd = process.platform === 'darwin' ? 'open' : 'xdg-open'
+        execFile(openCmd, [reportPath])
+      }
+    } catch {
+    }
+
     console.log()
   }
 
-  return 1
+  return threats.length > 0 ? 1 : 0
 }

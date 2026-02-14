@@ -44,6 +44,7 @@
     "test": "vitest --run"
   },
   "dependencies": {
+    "@inquirer/select": "^4.0.0",
     "@sapper-ai/core": "workspace:*",
     "@sapper-ai/types": "workspace:*"
   },

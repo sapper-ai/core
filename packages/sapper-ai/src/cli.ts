@@ -6,6 +6,8 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import * as readline from 'node:readline'
 
+import select from '@inquirer/select'
+
 import { presets, type PresetName } from './presets'
 import { runScan, type ScanOptions } from './scan'
 
@@ -55,6 +57,9 @@ Usage:
   sapper-ai scan --system     AI system paths (~/.claude, ~/.cursor, ...)
   sapper-ai scan ./path       Scan a specific file/directory
   sapper-ai scan --fix        Quarantine blocked files
+  sapper-ai scan --ai         Deep scan with AI analysis (requires OPENAI_API_KEY)
+  sapper-ai scan --report     Generate HTML report and open in browser
+  sapper-ai scan --no-save    Skip saving scan results to ~/.sapperai/scans/
   sapper-ai init          Interactive setup wizard
   sapper-ai dashboard     Launch web dashboard
   sapper-ai --help        Show this help
@@ -65,11 +70,22 @@ Learn more: https://github.com/sapper-ai/sapperai
 
 function parseScanArgs(
   argv: string[]
-): { targets: string[]; fix: boolean; deep: boolean; system: boolean } | null {
+): {
+  targets: string[]
+  fix: boolean
+  deep: boolean
+  system: boolean
+  ai: boolean
+  report: boolean
+  noSave: boolean
+} | null {
   const targets: string[] = []
   let fix = false
   let deep = false
   let system = false
+  let ai = false
+  let report = false
+  let noSave = false
 
   for (const arg of argv) {
     if (arg === '--fix') {
@@ -87,6 +103,21 @@ function parseScanArgs(
       continue
     }
 
+    if (arg === '--ai') {
+      ai = true
+      continue
+    }
+
+    if (arg === '--report') {
+      report = true
+      continue
+    }
+
+    if (arg === '--no-save') {
+      noSave = true
+      continue
+    }
+
     if (arg.startsWith('-')) {
       return null
     }
@@ -94,7 +125,7 @@ function parseScanArgs(
     targets.push(arg)
   }
 
-  return { targets, fix, deep, system }
+  return { targets, fix, deep, system, ai, report, noSave }
 }
 
 function displayPath(path: string): string {
@@ -104,25 +135,34 @@ function displayPath(path: string): string {
 }
 
 async function promptScanScope(cwd: string): Promise<'shallow' | 'deep' | 'system'> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
-  const ask = (q: string): Promise<string> => new Promise((res) => rl.question(q, res))
+  const answer = await select({
+    message: 'Scan scope:',
+    choices: [
+      { name: `Current directory only     ${displayPath(cwd)}`, value: 'shallow' as const },
+      { name: `Current + subdirectories   ${displayPath(join(cwd, '**'))}`, value: 'deep' as const },
+      {
+        name: 'AI system scan              ~/.claude, ~/.cursor, ~/.vscode ...',
+        value: 'system' as const,
+      },
+    ],
+    default: 'deep',
+  })
+  return answer
+}
 
-  try {
-    console.log('\n  SapperAI Security Scanner\n')
-    console.log('  ? Scan scope:')
-    console.log(`  ❯ 1) Current directory only     ${displayPath(cwd)}`)
-    console.log(`    2) Current + subdirectories   ${displayPath(join(cwd, '**'))}`)
-    console.log('    3) AI system scan              ~/.claude, ~/.cursor, ~/.vscode ...')
-    console.log()
-
-    const answer = await ask('  Choose [1-3] (default: 2): ')
-    const picked = Number.parseInt(answer.trim(), 10)
-    if (picked === 1) return 'shallow'
-    if (picked === 3) return 'system'
-    return 'deep'
-  } finally {
-    rl.close()
-  }
+async function promptScanDepth(): Promise<boolean> {
+  const answer = await select({
+    message: 'Scan depth:',
+    choices: [
+      { name: 'Quick scan (rules only)      Fast regex pattern matching', value: false as const },
+      {
+        name: 'Deep scan (rules + AI)       AI-powered analysis (requires OPENAI_API_KEY)',
+        value: true as const,
+      },
+    ],
+    default: false,
+  })
+  return answer
 }
 
 async function resolveScanOptions(args: {
@@ -130,46 +170,65 @@ async function resolveScanOptions(args: {
   fix: boolean
   deep: boolean
   system: boolean
+  ai: boolean
+  report: boolean
+  noSave: boolean
 }): Promise<ScanOptions | null> {
   const cwd = process.cwd()
+
+  const common = {
+    fix: args.fix,
+    report: args.report,
+    noSave: args.noSave,
+  }
 
   if (args.system) {
     if (args.targets.length > 0) {
       return null
     }
 
-    return { system: true, fix: args.fix, scopeLabel: 'AI system scan' }
+    return { ...common, system: true, ai: args.ai, scopeLabel: 'AI system scan' }
   }
 
   if (args.targets.length > 0) {
     if (args.targets.length === 1 && args.targets[0] === '.' && !args.deep) {
-      return { targets: [cwd], deep: false, fix: args.fix, scopeLabel: 'Current directory only' }
+      return {
+        ...common,
+        targets: [cwd],
+        deep: false,
+        ai: args.ai,
+        scopeLabel: 'Current directory only',
+      }
     }
 
     return {
+      ...common,
       targets: args.targets,
       deep: true,
-      fix: args.fix,
+      ai: args.ai,
       scopeLabel: args.targets.length === 1 && args.targets[0] === '.' ? 'Current + subdirectories' : 'Custom path',
     }
   }
 
   if (args.deep) {
-    return { targets: [cwd], deep: true, fix: args.fix, scopeLabel: 'Current + subdirectories' }
+    return { ...common, targets: [cwd], deep: true, ai: args.ai, scopeLabel: 'Current + subdirectories' }
   }
 
   if (process.stdout.isTTY !== true) {
-    return { targets: [cwd], deep: true, fix: args.fix, scopeLabel: 'Current + subdirectories' }
+    return { ...common, targets: [cwd], deep: true, ai: false, scopeLabel: 'Current + subdirectories' }
   }
 
   const scope = await promptScanScope(cwd)
+
+  const ai = args.ai ? true : await promptScanDepth()
+
   if (scope === 'system') {
-    return { system: true, fix: args.fix, scopeLabel: 'AI system scan' }
+    return { ...common, system: true, ai, scopeLabel: 'AI system scan' }
   }
   if (scope === 'shallow') {
-    return { targets: [cwd], deep: false, fix: args.fix, scopeLabel: 'Current directory only' }
+    return { ...common, targets: [cwd], deep: false, ai, scopeLabel: 'Current directory only' }
   }
-  return { targets: [cwd], deep: true, fix: args.fix, scopeLabel: 'Current + subdirectories' }
+  return { ...common, targets: [cwd], deep: true, ai, scopeLabel: 'Current + subdirectories' }
 }
 
 async function runDashboard(): Promise<number> {
