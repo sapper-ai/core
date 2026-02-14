@@ -25,8 +25,8 @@ export interface ScanOptions {
   system?: boolean
   scopeLabel?: string
   ai?: boolean
-  report?: boolean
   noSave?: boolean
+  noOpen?: boolean
 }
 
 interface ScanFinding {
@@ -648,11 +648,33 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
   if (options.noSave !== true) {
     const scanDir = join(homedir(), '.sapperai', 'scans')
     await mkdir(scanDir, { recursive: true })
-    const filename = `${new Date().toISOString().replace(/[:.]/g, '-')}.json`
-    const savedPath = join(scanDir, filename)
-    await writeFile(savedPath, JSON.stringify(scanResult, null, 2), 'utf8')
-    console.log(`  Saved to ${savedPath}`)
+    const ts = new Date().toISOString().replace(/[:.]/g, '-')
+
+    const jsonPath = join(scanDir, `${ts}.json`)
+    await writeFile(jsonPath, JSON.stringify(scanResult, null, 2), 'utf8')
+
+    const { generateHtmlReport } = await import('./report')
+    const html = generateHtmlReport(scanResult)
+    const htmlPath = join(scanDir, `${ts}.html`)
+    await writeFile(htmlPath, html, 'utf8')
+
+    console.log(`  Saved to ${jsonPath}`)
+    console.log(`  Report: ${htmlPath}`)
     console.log()
+
+    if (options.noOpen !== true) {
+      try {
+        const { execFile } = await import('node:child_process')
+
+        if (process.platform === 'win32') {
+          execFile('cmd', ['/c', 'start', '', htmlPath])
+        } else {
+          const openCmd = process.platform === 'darwin' ? 'open' : 'xdg-open'
+          execFile(openCmd, [htmlPath])
+        }
+      } catch {
+      }
+    }
   }
 
   if (threats.length === 0) {
@@ -678,28 +700,6 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
       console.log("  Run 'npx sapper-ai scan --fix' to quarantine blocked files.")
       console.log()
     }
-  }
-
-  if (options.report) {
-    const { generateHtmlReport } = await import('./report')
-    const html = generateHtmlReport(scanResult)
-    const reportPath = join(process.cwd(), 'sapper-report.html')
-    await writeFile(reportPath, html, 'utf8')
-    console.log(`  Report saved to ${reportPath}`)
-
-    try {
-      const { execFile } = await import('node:child_process')
-
-      if (process.platform === 'win32') {
-        execFile('cmd', ['/c', 'start', '', reportPath])
-      } else {
-        const openCmd = process.platform === 'darwin' ? 'open' : 'xdg-open'
-        execFile(openCmd, [reportPath])
-      }
-    } catch {
-    }
-
-    console.log()
   }
 
   return threats.length > 0 ? 1 : 0

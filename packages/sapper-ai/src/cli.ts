@@ -58,7 +58,7 @@ Usage:
   sapper-ai scan ./path       Scan a specific file/directory
   sapper-ai scan --fix        Quarantine blocked files
   sapper-ai scan --ai         Deep scan with AI analysis (requires OPENAI_API_KEY)
-  sapper-ai scan --report     Generate HTML report and open in browser
+  sapper-ai scan --no-open    Skip opening report in browser
   sapper-ai scan --no-save    Skip saving scan results to ~/.sapperai/scans/
   sapper-ai init          Interactive setup wizard
   sapper-ai dashboard     Launch web dashboard
@@ -76,16 +76,16 @@ function parseScanArgs(
   deep: boolean
   system: boolean
   ai: boolean
-  report: boolean
   noSave: boolean
+  noOpen: boolean
 } | null {
   const targets: string[] = []
   let fix = false
   let deep = false
   let system = false
   let ai = false
-  let report = false
   let noSave = false
+  let noOpen = false
 
   for (const arg of argv) {
     if (arg === '--fix') {
@@ -108,8 +108,8 @@ function parseScanArgs(
       continue
     }
 
-    if (arg === '--report') {
-      report = true
+    if (arg === '--no-open') {
+      noOpen = true
       continue
     }
 
@@ -125,7 +125,7 @@ function parseScanArgs(
     targets.push(arg)
   }
 
-  return { targets, fix, deep, system, ai, report, noSave }
+  return { targets, fix, deep, system, ai, noSave, noOpen }
 }
 
 function displayPath(path: string): string {
@@ -171,15 +171,15 @@ async function resolveScanOptions(args: {
   deep: boolean
   system: boolean
   ai: boolean
-  report: boolean
   noSave: boolean
+  noOpen: boolean
 }): Promise<ScanOptions | null> {
   const cwd = process.cwd()
 
   const common = {
     fix: args.fix,
-    report: args.report,
     noSave: args.noSave,
+    noOpen: args.noOpen,
   }
 
   if (args.system) {
