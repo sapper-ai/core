@@ -16,7 +16,9 @@ import {
 } from '@sapper-ai/core'
 import type { Decision, LlmConfig, Policy } from '@sapper-ai/types'
 
+import { getAuthPath, loadOpenAiApiKey, promptAndSaveOpenAiApiKey } from './auth'
 import { presets } from './presets'
+import { createColors, header, padLeft, padRightVisual, riskColor, table, truncateToWidth } from './utils/format'
 import { findRepoRoot } from './utils/repoRoot'
 
 export interface ScanOptions {
@@ -29,6 +31,8 @@ export interface ScanOptions {
   ai?: boolean
   noSave?: boolean
   noOpen?: boolean
+  noPrompt?: boolean
+  noColor?: boolean
 }
 
 interface ScanFinding {
@@ -36,6 +40,7 @@ interface ScanFinding {
   decision: Decision
   quarantinedId?: string
   aiAnalysis?: string | null
+  source?: 'rules' | 'ai'
 }
 
 interface ScanFileResult {
@@ -81,11 +86,6 @@ export interface ScanResult {
     }>
   }>
 }
-
-const GREEN = '\x1b[32m'
-const YELLOW = '\x1b[33m'
-const RED = '\x1b[31m'
-const RESET = '\x1b[0m'
 
 const SYSTEM_SCAN_PATHS = (() => {
   const home = homedir()
@@ -197,110 +197,49 @@ async function collectFiles(targetPath: string, deep: boolean): Promise<string[]
   return results
 }
 
-function riskColor(risk: number): string {
-  if (risk >= 0.8) return RED
-  if (risk >= 0.5) return YELLOW
-  return GREEN
-}
-
-function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-9;]*m/g, '')
-}
-
-function truncateToWidth(text: string, maxWidth: number): string {
-  if (maxWidth <= 0) {
-    return ''
-  }
-  if (text.length <= maxWidth) {
-    return text
-  }
-
-  if (maxWidth <= 3) {
-    return '.'.repeat(maxWidth)
-  }
-
-  return `...${text.slice(text.length - (maxWidth - 3))}`
-}
-
-function renderProgressBar(current: number, total: number, width: number): string {
-  const safeTotal = Math.max(1, total)
-  const pct = Math.floor((current / safeTotal) * 100)
-  const filled = Math.floor((current / safeTotal) * width)
-  const bar = '█'.repeat(filled) + '░'.repeat(Math.max(0, width - filled))
-  return `  ${bar}  ${pct}% │ ${current}/${total} files`
-}
-
 function extractPatternLabel(decision: Decision): string {
   const reason = decision.reasons[0]
   if (!reason) return 'threat'
   return reason.startsWith('Detected pattern: ') ? reason.slice('Detected pattern: '.length) : reason
 }
 
-function padRight(text: string, width: number): string {
-  if (text.length >= width) return text
-  return text + ' '.repeat(width - text.length)
-}
-
-function padRightVisual(text: string, width: number): string {
-  const visLen = stripAnsi(text).length
-  if (visLen >= width) return text
-  return text + ' '.repeat(width - visLen)
-}
-
-function padLeft(text: string, width: number): string {
-  if (text.length >= width) return text
-  return ' '.repeat(width - text.length) + text
-}
-
 function renderFindingsTable(
   findings: ScanFinding[],
-  opts: { cwd: string; columns: number; color: boolean }
-): string[] {
-  const rows = findings.map((f, i) => {
-    const file = f.filePath.startsWith(opts.cwd + '/') ? f.filePath.slice(opts.cwd.length + 1) : f.filePath
-    const pattern = extractPatternLabel(f.decision)
-    const riskValue = f.decision.risk.toFixed(2)
-    const riskPlain = padLeft(riskValue, 4)
-    const risk = opts.color ? `${riskColor(f.decision.risk)}${riskPlain}${RESET}` : riskPlain
-    return { idx: String(i + 1), file, risk, pattern }
-  })
-
-  const idxWidth = Math.max(1, ...rows.map((r) => r.idx.length))
+  opts: { cwd: string; columns: number; colors: ReturnType<typeof createColors>; includeSource?: boolean }
+): string {
   const riskWidth = 4
-  const patternWidth = Math.min(20, Math.max('Pattern'.length, ...rows.map((r) => r.pattern.length)))
+  const patternWidth = Math.min(20, Math.max('Pattern'.length, ...findings.map((f) => extractPatternLabel(f.decision).length)))
+  const sourceWidth = opts.includeSource ? Math.max('Source'.length, 5) : 0
 
-  const baseWidth = 2 + idxWidth + 2 + 2 + riskWidth + 2 + 2 + patternWidth + 2
   const maxTableWidth = Math.max(60, Math.min(opts.columns || 80, 120))
+  const sepWidth = 2
+  const baseWidth =
+    'File'.length + sepWidth + riskWidth + sepWidth + patternWidth + (opts.includeSource ? sepWidth + sourceWidth : 0)
   const fileWidth = Math.max(20, Math.min(50, maxTableWidth - baseWidth))
 
-  const top = `  ┌${'─'.repeat(idxWidth + 2)}┬${'─'.repeat(fileWidth + 2)}┬${'─'.repeat(riskWidth + 2)}┬${'─'.repeat(
-    patternWidth + 2
-  )}┐`
-  const header = `  │ ${padRight('#', idxWidth)} │ ${padRight('File', fileWidth)} │ ${padRight(
-    'Risk',
-    riskWidth
-  )} │ ${padRight('Pattern', patternWidth)} │`
-  const sep = `  ├${'─'.repeat(idxWidth + 2)}┼${'─'.repeat(fileWidth + 2)}┼${'─'.repeat(riskWidth + 2)}┼${'─'.repeat(
-    patternWidth + 2
-  )}┤`
+  const headers = opts.includeSource ? ['File', 'Risk', 'Pattern', 'Source'] : ['File', 'Risk', 'Pattern']
 
-  const lines = [top, header, sep]
-  for (const r of rows) {
-    const file = truncateToWidth(r.file, fileWidth)
-    const pattern = truncateToWidth(r.pattern, patternWidth)
-    lines.push(
-      `  │ ${padRight(r.idx, idxWidth)} │ ${padRight(file, fileWidth)} │ ${padRightVisual(r.risk, riskWidth)} │ ${padRight(
-        pattern,
-        patternWidth
-      )} │`
-    )
-  }
+  const rows = findings.map((f) => {
+    const relative = f.filePath.startsWith(opts.cwd + '/') ? f.filePath.slice(opts.cwd.length + 1) : f.filePath
+    const file = truncateToWidth(relative, fileWidth)
 
-  const bottom = `  └${'─'.repeat(idxWidth + 2)}┴${'─'.repeat(fileWidth + 2)}┴${'─'.repeat(riskWidth + 2)}┴${'─'.repeat(
-    patternWidth + 2
-  )}┘`
-  lines.push(bottom)
-  return lines
+    const label = extractPatternLabel(f.decision)
+    const patternPlain = truncateToWidth(label, patternWidth)
+    const pattern = `${opts.colors.dim}${patternPlain}${opts.colors.reset}`
+
+    const riskValue = f.decision.risk.toFixed(2)
+    const riskPlain = padLeft(riskValue, riskWidth)
+    const risk = `${riskColor(f.decision.risk, opts.colors)}${riskPlain}${opts.colors.reset}`
+
+    if (!opts.includeSource) {
+      return [file, risk, pattern]
+    }
+
+    const src = f.source === 'ai' ? `${opts.colors.olive}ai${opts.colors.reset}` : `${opts.colors.dim}rules${opts.colors.reset}`
+    return [file, risk, pattern, src]
+  })
+
+  return table(headers, rows, opts.colors)
 }
 
 function isThreat(decision: Decision, policy: Policy): boolean {
@@ -530,17 +469,43 @@ async function buildScanResult(params: {
 
 export async function runScan(options: ScanOptions = {}): Promise<number> {
   const cwd = process.cwd()
+  const colors = createColors({ noColor: options.noColor })
   const policy = resolvePolicy(cwd, { policyPath: options.policyPath })
   const fix = options.fix === true
+
+  console.log(`\n${header('scan', colors)}\n`)
 
   const aiEnabled = options.ai === true
   let llmConfig: LlmConfig | null = null
 
   if (aiEnabled) {
-    const apiKey = process.env.OPENAI_API_KEY
+    let apiKey = await loadOpenAiApiKey()
     if (!apiKey) {
-      console.log('\n  Error: OPENAI_API_KEY environment variable is required for --ai mode.\n')
-      return 1
+      const canPrompt =
+        options.noPrompt !== true && process.stdout.isTTY === true && process.stdin.isTTY === true
+
+      if (!canPrompt) {
+        console.log('  Error: OPENAI_API_KEY environment variable is required for --ai mode.\n')
+        return 1
+      }
+
+      console.log('  No OpenAI API key found.\n')
+      console.log(`  ${colors.olive}Get one at https://platform.openai.com/api-keys${colors.reset}`)
+      console.log()
+
+      apiKey = await promptAndSaveOpenAiApiKey()
+      if (!apiKey) {
+        console.log('\n  Error: API key is required for --ai mode.\n')
+        return 1
+      }
+
+      const authPath = getAuthPath()
+      const home = homedir()
+      const displayAuthPath =
+        authPath === home ? '~' : authPath.startsWith(home + '/') ? `~/${authPath.slice(home.length + 1)}` : authPath
+      console.log()
+      console.log(`${colors.dim}  Key saved to ${displayAuthPath}${colors.reset}`)
+      console.log()
     }
     llmConfig = { provider: 'openai', apiKey, model: 'gpt-4.1-mini' }
   }
@@ -558,20 +523,6 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
   const quarantineDir = process.env.SAPPERAI_QUARANTINE_DIR
   const quarantineManager = quarantineDir ? new QuarantineManager({ quarantineDir }) : new QuarantineManager()
 
-  const isTTY = process.stdout.isTTY === true
-  const color = isTTY
-  const scopeLabel =
-    options.scopeLabel ??
-    (options.system
-      ? 'AI system scan'
-      : deep
-        ? 'Current + subdirectories'
-        : 'Current directory only')
-
-  console.log('\n  SapperAI Security Scanner\n')
-  console.log(`  Scope: ${scopeLabel}`)
-  console.log()
-
   const fileSet = new Set<string>()
   for (const target of targets) {
     const files = await collectFiles(target, deep)
@@ -581,49 +532,19 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
   }
 
   const files = Array.from(fileSet).sort()
-  console.log(`  Collecting files...  ${files.length} files found`)
-  const eligibleByName = files.filter((f) => isConfigLikeFile(f)).length
-  console.log(`  Filter: config-like only (${eligibleByName} eligible / ${files.length} total)`)
-  console.log()
+  const eligibleFiles = files.filter((f) => isConfigLikeFile(f))
+  const eligibleByName = eligibleFiles.length
+  const skippedNotEligible = Math.max(0, files.length - eligibleByName)
 
-  if (aiEnabled) {
-    console.log('  Phase 1/2: Rules scan')
-    console.log()
-  }
+  console.log(`${colors.dim}  Scanning ${eligibleByName} files...${colors.reset}`)
+  console.log()
 
   const scannedFindings: ScanFinding[] = []
   let scannedFiles = 0
-  let eligibleFiles = 0
-  let skippedNotEligible = 0
   let skippedEmptyOrUnreadable = 0
 
-  const total = files.length
-  const progressWidth = Math.max(10, Math.min(30, (process.stdout.columns ?? 80) - 30))
-
-  for (let i = 0; i < files.length; i += 1) {
-    const filePath = files[i]!
-
-    if (isTTY && total > 0) {
-      const bar = renderProgressBar(i + 1, total, progressWidth)
-      const label = '  Scanning: '
-      const maxPath = Math.max(10, (process.stdout.columns ?? 80) - stripAnsi(bar).length - label.length)
-      const scanning = `${label}${truncateToWidth(filePath, maxPath)}`
-
-      if (i === 0) {
-        process.stdout.write(`${bar}\n${scanning}\n`)
-      } else {
-        process.stdout.write(`\x1b[2A\x1b[2K\r${bar}\n\x1b[2K\r${scanning}\n`)
-      }
-    }
-
+  for (const filePath of eligibleFiles) {
     const result = await scanFile(filePath, policy, scanner, detectors, fix, quarantineManager)
-
-    if (result.skipReason === 'not_eligible') {
-      skippedNotEligible += 1
-      continue
-    }
-
-    eligibleFiles += 1
 
     if (result.skipReason === 'empty_or_unreadable') {
       skippedEmptyOrUnreadable += 1
@@ -632,13 +553,16 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
 
     if (result.scanned && result.decision) {
       scannedFiles += 1
-      scannedFindings.push({ filePath, decision: result.decision, quarantinedId: result.quarantinedId })
+      scannedFindings.push({
+        filePath,
+        decision: result.decision,
+        quarantinedId: result.quarantinedId,
+        source: aiEnabled ? 'rules' : undefined,
+      })
     }
   }
 
-  if (isTTY && total > 0) {
-    process.stdout.write('\x1b[2A\x1b[2K\r\x1b[1B\x1b[2K\r')
-  }
+  let aiTargetsCount = 0
 
   if (aiEnabled && llmConfig) {
     const suspiciousFindings = scannedFindings.filter((f) => f.decision.risk >= 0.5)
@@ -646,13 +570,7 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
 
     if (suspiciousFindings.length > 0) {
       const aiTargets = suspiciousFindings.slice(0, maxAiFiles)
-      if (suspiciousFindings.length > maxAiFiles) {
-        console.log(`  Note: AI scan limited to ${maxAiFiles} files (${suspiciousFindings.length} suspicious)`) 
-      }
-
-      console.log()
-      console.log(`  Phase 2/2: AI deep scan (${aiTargets.length} files)`) 
-      console.log()
+      aiTargetsCount = aiTargets.length
 
       const detectorsList = (policy.detectors ?? ['rules']).slice()
       if (!detectorsList.includes('llm')) {
@@ -662,21 +580,7 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
       const aiPolicy: Policy = { ...policy, llm: llmConfig, detectors: detectorsList }
       const aiDetectors = createDetectors({ policy: aiPolicy, preferredDetectors: ['rules', 'llm'] })
 
-      for (let i = 0; i < aiTargets.length; i += 1) {
-        const finding = aiTargets[i]!
-
-        if (isTTY) {
-          const bar = renderProgressBar(i + 1, aiTargets.length, progressWidth)
-          const label = '  Analyzing: '
-          const maxPath = Math.max(10, (process.stdout.columns ?? 80) - stripAnsi(bar).length - label.length)
-          const scanning = `${label}${truncateToWidth(finding.filePath, maxPath)}`
-          if (i === 0) {
-            process.stdout.write(`${bar}\n${scanning}\n`)
-          } else {
-            process.stdout.write(`\x1b[2A\x1b[2K\r${bar}\n\x1b[2K\r${scanning}\n`)
-          }
-        }
-
+      for (const finding of aiTargets) {
         try {
           const raw = await readFileIfPresent(finding.filePath)
           if (!raw) continue
@@ -689,7 +593,10 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
             sourceType: targetType,
           })
 
-          const mergedReasons = uniq([...finding.decision.reasons, ...aiDecision.reasons])
+          const aiDominates = aiDecision.risk > finding.decision.risk
+          const mergedReasons = aiDominates
+            ? uniq([...aiDecision.reasons, ...finding.decision.reasons])
+            : uniq([...finding.decision.reasons, ...aiDecision.reasons])
           const existingEvidence = finding.decision.evidence
           const mergedEvidence = [...existingEvidence]
           for (const ev of aiDecision.evidence) {
@@ -704,7 +611,8 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
             evidence: mergedEvidence,
           }
 
-          if (aiDecision.risk > finding.decision.risk) {
+          if (aiDominates) {
+            finding.source = 'ai'
             finding.decision = {
               ...nextDecision,
               action: aiDecision.action,
@@ -712,6 +620,7 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
               confidence: aiDecision.confidence,
             }
           } else {
+            finding.source = finding.source ?? 'rules'
             finding.decision = nextDecision
           }
 
@@ -720,12 +629,16 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
         } catch {
         }
       }
-
-      if (isTTY && aiTargets.length > 0) {
-        process.stdout.write('\x1b[2A\x1b[2K\r\x1b[1B\x1b[2K\r')
-      }
     }
   }
+
+  const scopeLabel =
+    options.scopeLabel ??
+    (options.system
+      ? 'AI system scan'
+      : deep
+        ? 'Current + subdirectories'
+        : 'Current directory only')
 
   const skippedFiles = skippedNotEligible + skippedEmptyOrUnreadable
   const threats = scannedFindings.filter((f) => isThreat(f.decision, policy))
@@ -734,8 +647,8 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
     scope: scopeLabel,
     target: targets.join(', '),
     ai: aiEnabled,
-    totalFiles: total,
-    eligibleFiles,
+    totalFiles: files.length,
+    eligibleFiles: eligibleByName,
     scannedFiles,
     skippedFiles,
     skippedNotEligible,
@@ -757,8 +670,8 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
     const htmlPath = join(scanDir, `${ts}.html`)
     await writeFile(htmlPath, html, 'utf8')
 
-    console.log(`  Saved to ${jsonPath}`)
-    console.log(`  Report: ${htmlPath}`)
+    console.log(`${colors.dim}  Saved to ${jsonPath}${colors.reset}`)
+    console.log(`${colors.dim}  Report: ${htmlPath}${colors.reset}`)
     console.log()
 
     if (options.noOpen !== true) {
@@ -776,30 +689,39 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
     }
   }
 
-  if (threats.length === 0) {
-    const msg = `  ✓ All clear — ${scannedFiles}/${eligibleFiles} eligible files scanned, 0 threats detected (${total} total files)`
-    console.log(color ? `${GREEN}${msg}${RESET}` : msg)
-    console.log()
-  } else {
-    const warn = `  ⚠ ${scannedFiles}/${eligibleFiles} eligible files scanned, ${threats.length} threats detected (${total} total files)`
-    console.log(color ? `${RED}${warn}${RESET}` : warn)
-    console.log()
+  if (aiEnabled) {
+    const countWidth = Math.max(String(eligibleByName).length, String(aiTargetsCount).length)
+    const rulesName = `${colors.dim}rules${colors.reset}`
+    const aiName = `${colors.olive}ai${colors.reset}`
 
-    const tableLines = renderFindingsTable(threats, {
-      cwd,
-      columns: process.stdout.columns ?? 80,
-      color,
-    })
-    for (const line of tableLines) {
-      console.log(line)
-    }
+    console.log(`  Phase 1  ${padRightVisual(rulesName, 5)}  ${padLeft(String(eligibleByName), countWidth)} files`)
+    console.log(`  Phase 2  ${padRightVisual(aiName, 5)}  ${padLeft(String(aiTargetsCount), countWidth)} files`)
     console.log()
-
-    if (!fix) {
-      console.log("  Run 'npx sapper-ai scan --fix' to quarantine blocked files.")
-      console.log()
-    }
   }
 
-  return threats.length > 0 ? 1 : 0
+  if (threats.length === 0) {
+    console.log(`  ${colors.olive}All clear — 0 threats in ${eligibleByName} files${colors.reset}`)
+    console.log()
+    return 0
+  }
+
+  console.log(
+    renderFindingsTable(threats, {
+      cwd,
+      columns: process.stdout.columns ?? 80,
+      colors,
+      includeSource: aiEnabled,
+    })
+  )
+  console.log()
+
+  console.log(`  ${threats.length} threats found in ${eligibleByName} files (${files.length} total)`)
+  console.log()
+  if (!fix) {
+    console.log('  Run npx sapper-ai scan --fix to quarantine.\n')
+  } else {
+    console.log()
+  }
+
+  return 1
 }

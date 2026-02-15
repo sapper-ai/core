@@ -37,14 +37,17 @@ export async function backupFile(originalPath: string): Promise<string> {
   return backupPath
 }
 
-export async function atomicWriteFile(filePath: string, content: string): Promise<void> {
+export async function atomicWriteFile(
+  filePath: string,
+  content: string,
+  options: { mode?: number } = {}
+): Promise<void> {
   const dir = dirname(filePath)
   await ensureDir(dir)
 
   const tmpName = `.${basename(filePath)}.tmp.${process.pid}.${Date.now()}`
   const tmpPath = join(dir, tmpName)
 
-  await writeFile(tmpPath, content, 'utf8')
+  await writeFile(tmpPath, content, { encoding: 'utf8', mode: options.mode })
   await rename(tmpPath, filePath)
 }
-

@@ -44,6 +44,7 @@
     "test": "vitest --run"
   },
   "dependencies": {
+    "@inquirer/password": "^4.0.0",
     "@inquirer/select": "^4.0.0",
     "@sapper-ai/core": "workspace:*",
     "@sapper-ai/mcp": "workspace:*",

@@ -117,7 +117,8 @@ Usage:
   sapper-ai scan ./path       Scan a specific file/directory
   sapper-ai scan --policy ./sapperai.config.yaml  Use explicit policy path (fatal if invalid)
   sapper-ai scan --fix        Quarantine blocked files
-  sapper-ai scan --ai         Deep scan with AI analysis (requires OPENAI_API_KEY)
+  sapper-ai scan --ai         Deep scan with AI analysis (OpenAI; prompts for key in a TTY)
+  sapper-ai scan --no-color   Disable ANSI colors
   sapper-ai scan --no-prompt  Disable all prompts (CI-safe)
   sapper-ai scan --harden     After scan, offer to apply recommended hardening
   sapper-ai scan --no-open    Skip opening report in browser
@@ -148,6 +149,7 @@ function parseScanArgs(
   ai: boolean
   noSave: boolean
   noOpen: boolean
+  noColor: boolean
   noPrompt: boolean
   harden: boolean
 } | null {
@@ -159,6 +161,7 @@ function parseScanArgs(
   let ai = false
   let noSave = false
   let noOpen = false
+  let noColor = false
   let noPrompt = false
   let harden = false
 
@@ -195,6 +198,11 @@ function parseScanArgs(
       continue
     }
 
+    if (arg === '--no-color') {
+      noColor = true
+      continue
+    }
+
     if (arg === '--no-prompt') {
       noPrompt = true
       continue
@@ -222,7 +230,7 @@ function parseScanArgs(
     targets.push(arg)
   }
 
-  return { targets, policyPath, fix, deep, system, ai, noSave, noOpen, noPrompt, harden }
+  return { targets, policyPath, fix, deep, system, ai, noSave, noOpen, noColor, noPrompt, harden }
 }
 
 function parseHardenArgs(
@@ -231,6 +239,7 @@ function parseHardenArgs(
   apply?: boolean
   includeSystem?: boolean
   yes?: boolean
+  noColor?: boolean
   noPrompt?: boolean
   force?: boolean
   workflowVersion?: string
@@ -239,6 +248,7 @@ function parseHardenArgs(
   let apply = false
   let includeSystem = false
   let yes = false
+  let noColor = false
   let noPrompt = false
   let force = false
   let workflowVersion: string | undefined
@@ -265,6 +275,11 @@ function parseHardenArgs(
 
     if (arg === '--yes') {
       yes = true
+      continue
+    }
+
+    if (arg === '--no-color') {
+      noColor = true
       continue
     }
 
@@ -299,6 +314,7 @@ function parseHardenArgs(
     apply,
     includeSystem,
     yes,
+    noColor,
     noPrompt,
     force,
     workflowVersion,
@@ -533,7 +549,7 @@ async function promptScanDepth(): Promise<boolean> {
     choices: [
       { name: 'Quick scan (rules only)      Fast regex pattern matching', value: false as const },
       {
-        name: 'Deep scan (rules + AI)       AI-powered analysis (requires OPENAI_API_KEY)',
+        name: 'Deep scan (rules + AI)       AI-powered analysis (OpenAI)',
         value: true as const,
       },
     ],
@@ -551,6 +567,7 @@ async function resolveScanOptions(args: {
   ai: boolean
   noSave: boolean
   noOpen: boolean
+  noColor: boolean
   noPrompt: boolean
   harden: boolean
 }): Promise<ScanOptions | null> {
@@ -560,6 +577,8 @@ async function resolveScanOptions(args: {
     fix: args.fix,
     noSave: args.noSave,
     noOpen: args.noOpen,
+    noColor: args.noColor,
+    noPrompt: args.noPrompt,
     policyPath: args.policyPath,
   }
 
