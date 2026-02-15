@@ -13,6 +13,10 @@
   --border: #e5e7eb;
   --surface: #ffffff;
   --muted: #f3f4f6;
+  --font-body: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR',
+    'Segoe UI', Arial, sans-serif;
+  --font-heading: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Apple SD Gothic Neo',
+    'Segoe UI', Arial, sans-serif;
 }
 
 * {
@@ -23,7 +27,7 @@ body {
   margin: 0;
   color: var(--ink);
   background: var(--frost);
-  font-family: var(--font-body), 'Noto Sans KR', sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -32,6 +36,6 @@ h1,
 h2,
 h3,
 h4 {
-  font-family: var(--font-heading), 'Outfit', sans-serif;
+  font-family: var(--font-heading);
   letter-spacing: -0.025em;
 }

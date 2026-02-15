@@ -1,31 +1,36 @@
 import type { Metadata } from 'next'
-import { Outfit, Noto_Sans_KR } from 'next/font/google'
 import type { ReactNode } from 'react'
 
 import './globals.css'
 
-const heading = Outfit({
-  subsets: ['latin'],
-  variable: '--font-heading',
-  weight: ['500', '600', '700'],
-})
-
-const body = Noto_Sans_KR({
-  subsets: ['latin'],
-  variable: '--font-body',
-  weight: ['400', '500', '700'],
-})
-
 export const metadata: Metadata = {
-  title: 'SapperAI | AI 에이전트 보안 가드레일',
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ??
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+  ),
+  title: {
+    default: 'SapperAI | AI 에이전트 보안 가드레일',
+    template: '%s | SapperAI',
+  },
   description:
     'SapperAI는 MCP/Agent 환경에서 프롬프트 인젝션, 명령어 인젝션, 경로 탐색 공격을 실시간으로 감지하고 차단합니다.',
+  openGraph: {
+    title: 'SapperAI | AI 에이전트 보안 가드레일',
+    description:
+      'SapperAI는 MCP/Agent 환경에서 프롬프트 인젝션, 명령어 인젝션, 경로 탐색 공격을 실시간으로 감지하고 차단합니다.',
+    siteName: 'SapperAI',
+    locale: 'ko_KR',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+  },
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
-      <body className={`${heading.variable} ${body.variable}`}>{children}</body>
+      <body>{children}</body>
     </html>
   )
 }
