@@ -1,6 +1,6 @@
 {
   "name": "sapper-ai",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "AI security guardrails - single install, sensible defaults",
   "keywords": [
     "security",
