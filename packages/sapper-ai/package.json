@@ -50,14 +50,6 @@
     "@sapper-ai/mcp": "workspace:*",
     "@sapper-ai/types": "workspace:*"
   },
-  "peerDependencies": {
-    "@sapper-ai/openai": "workspace:^"
-  },
-  "peerDependenciesMeta": {
-    "@sapper-ai/openai": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "typescript": "^5.3.0",

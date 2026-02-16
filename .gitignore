@@ -13,17 +13,9 @@ coverage
 
 # Sensitive Project Files
 docs/reports/
-scripts/run-real-env-mcp-scan.mjs
 
 # Agent Internal Files
 .sisyphus/
 .omc/
 .omx/
 .claude/
-
-# Generated artifacts
-packages/dashboard/standalone/
-
-e2e/.e2e-state.json
-e2e/test-results/
-e2e/playwright-report/

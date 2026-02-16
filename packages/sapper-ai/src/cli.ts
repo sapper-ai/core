@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { existsSync, writeFileSync } from 'node:fs'
-import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import * as readline from 'node:readline'
@@ -92,10 +91,6 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<nu
     return runQuarantineRestore({ id: parsed.id, quarantineDir: parsed.quarantineDir, force: parsed.force })
   }
 
-  if (argv[0] === 'dashboard') {
-    return runDashboard()
-  }
-
   if (argv[0] !== 'init') {
     printUsage()
     return 1
@@ -131,7 +126,6 @@ Usage:
   sapper-ai quarantine list   List quarantined files
   sapper-ai quarantine restore <id> [--force]  Restore quarantined file by id
   sapper-ai init          Interactive setup wizard
-  sapper-ai dashboard     Launch web dashboard
   sapper-ai --help        Show this help
 
 Learn more: https://github.com/sapper-ai/sapperai
@@ -629,51 +623,6 @@ async function resolveScanOptions(args: {
     return { ...common, targets: [cwd], deep: false, ai, scopeLabel: 'Current directory only' }
   }
   return { ...common, targets: [cwd], deep: true, ai, scopeLabel: 'Current + subdirectories' }
-}
-
-async function runDashboard(): Promise<number> {
-  const configuredPort = process.env.PORT
-  const standalonePort = configuredPort ?? '4100'
-  const devPort = configuredPort ?? '3000'
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const startPath = require.resolve('@sapper-ai/dashboard/bin/start')
-    process.env.PORT = standalonePort
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require(startPath)
-
-    return await new Promise<number>((resolveExit) => {
-      const stop = () => resolveExit(0)
-      process.once('SIGINT', stop)
-      process.once('SIGTERM', stop)
-    })
-  } catch {
-  }
-
-  const webDir = resolve(__dirname, '../../../apps/web')
-
-  if (existsSync(resolve(webDir, 'package.json'))) {
-    console.log(`\n  SapperAI Dashboard (dev): http://localhost:${devPort}/dashboard\n`)
-    console.log('  Press Ctrl+C to stop\n')
-
-    const child = spawn('npx', ['next', 'dev', '--port', devPort], {
-      cwd: webDir,
-      stdio: 'inherit',
-      env: process.env,
-    })
-
-    process.on('SIGINT', () => child.kill('SIGINT'))
-    process.on('SIGTERM', () => child.kill('SIGTERM'))
-
-    return await new Promise<number>((resolveExit) => {
-      child.on('close', (code) => resolveExit(code ?? 0))
-    })
-  }
-
-  console.error('\n  Install @sapper-ai/dashboard for standalone mode:')
-  console.error('  pnpm add @sapper-ai/dashboard\n')
-  return 1
 }
 
 async function runInitWizard(): Promise<void> {
