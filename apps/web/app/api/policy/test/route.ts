@@ -4,7 +4,7 @@ import { AuditLogger, createDetectors, DecisionEngine, Guard, PolicyManager } fr
 import type { Policy, ToolCall } from '@sapper-ai/types'
 import { ZodError } from 'zod'
 
-import { attackCases } from '../../../shared/attack-cases'
+import { attackCases } from '../../shared/attack-cases'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

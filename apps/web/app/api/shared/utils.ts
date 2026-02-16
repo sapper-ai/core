@@ -2,7 +2,7 @@ import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } fro
 
 import type { AuditLogEntry } from '@sapper-ai/types'
 
-import { getAuditLogPath } from '../shared/paths'
+import { getAuditLogPath } from './paths'
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 

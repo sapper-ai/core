@@ -33,13 +33,13 @@ export function QuickstartCodeBlock({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-[#0a0a0a] shadow-subtle">
+    <div className="overflow-hidden rounded-lg border border-border bg-[#0a0a0a]">
       <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-white/60">{headerLabel}</p>
         <button
           type="button"
           onClick={() => void handleCopy()}
-          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10"
+          className="rounded-lg border border-white/15 bg-steel/20 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-steel/30"
           aria-label="Copy code"
         >
           {copyState === 'copied' ? 'Copied' : copyState === 'error' ? 'Copy failed' : 'Copy'}
@@ -51,4 +51,3 @@ export function QuickstartCodeBlock({
     </div>
   )
 }
-

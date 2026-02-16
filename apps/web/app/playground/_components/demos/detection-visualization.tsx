@@ -26,7 +26,7 @@ export function DetectionVisualization({ data }: { data: DetectionResponse }) {
 
   return (
     <div className="grid gap-4 rounded-xl border border-border bg-muted p-4">
-      <div className="grid gap-3 rounded-xl border border-border bg-white p-5">
+      <div className="grid gap-3 rounded-xl border border-border bg-surface p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="grid gap-1">
             <p className="text-sm font-semibold text-ink">Risk Gauge</p>
@@ -57,7 +57,7 @@ export function DetectionVisualization({ data }: { data: DetectionResponse }) {
 
       <div className="grid gap-2">
         <p className="text-sm font-semibold text-ink">Detection Pipeline</p>
-        <div className="rounded-xl border border-border bg-white p-4">
+        <div className="rounded-xl border border-border bg-surface p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between sm:gap-2">
             {pipeline.map((step, index) => (
               <div key={step.id} className="flex items-center gap-2 sm:flex-1">
@@ -86,7 +86,7 @@ export function DetectionVisualization({ data }: { data: DetectionResponse }) {
             ))}
           </div>
 
-          <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-white px-3 py-2">
+          <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-steel">DecisionEngine</p>
             <p className="text-xs text-steel">최종 판정: {data.action.toUpperCase()}</p>
           </div>
@@ -99,10 +99,10 @@ export function DetectionVisualization({ data }: { data: DetectionResponse }) {
           {timeline.map((entry, index) => {
             const isTerminal = index === timeline.length - 1
             return (
-              <li key={entry.id} className="relative rounded-lg border border-border bg-white px-3 py-2">
+              <li key={entry.id} className="relative rounded-lg border border-border bg-surface px-3 py-2">
                 <span
                   className={`absolute left-3 top-4 h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 ${
-                    isTerminal ? 'border-ember bg-ember' : 'border-gray-300 bg-white'
+                    isTerminal ? 'border-ember bg-ember' : 'border-gray-300 bg-surface'
                   }`}
                 />
                 <p className="text-xs font-semibold uppercase tracking-wide text-steel">{entry.title}</p>
@@ -115,4 +115,3 @@ export function DetectionVisualization({ data }: { data: DetectionResponse }) {
     </div>
   )
 }
-

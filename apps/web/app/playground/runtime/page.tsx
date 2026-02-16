@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function PlaygroundRuntimePage() {
   return (
     <div className="grid gap-6">
-      <section className="rounded-2xl border border-border bg-white p-6 shadow-subtle">
+      <section className="rounded-2xl border border-border bg-surface p-6">
         <p className="text-sm font-semibold text-ink">Deep links</p>
         <p className="mt-1 text-xs text-steel">
           Supports <code className="rounded bg-muted px-1 py-0.5">?sample=&lt;id&gt;&amp;autorun=1</code> and cleans the
@@ -24,7 +24,7 @@ export default function PlaygroundRuntimePage() {
             <Link
               key={preset.id}
               href={{ pathname: '/playground/runtime', query: { sample: preset.id, autorun: '1' } }}
-              className="rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-white"
+              className="rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-surface"
             >
               Run {preset.title}
             </Link>
@@ -32,7 +32,7 @@ export default function PlaygroundRuntimePage() {
         </div>
       </section>
 
-      <Suspense fallback={<div className="rounded-2xl border border-border bg-white p-6 text-sm text-steel shadow-subtle">Loading...</div>}>
+      <Suspense fallback={<div className="rounded-2xl border border-border bg-surface p-6 text-sm text-steel">Loading...</div>}>
         <InteractiveDemoSection />
       </Suspense>
     </div>

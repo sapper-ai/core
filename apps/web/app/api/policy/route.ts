@@ -7,7 +7,7 @@ import type { Policy } from '@sapper-ai/types'
 import { stringify } from 'yaml'
 import { ZodError } from 'zod'
 
-import { getConfigPath } from '../../shared/paths'
+import { getConfigPath } from '../shared/paths'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

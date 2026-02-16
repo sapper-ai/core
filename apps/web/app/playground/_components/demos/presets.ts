@@ -1,4 +1,4 @@
-import type { AgentScenarioPreset, DemoPreset } from '@/app/components/types'
+import type { DemoPreset } from '@/app/components/types'
 
 export const presets: DemoPreset[] = [
   {
@@ -30,17 +30,3 @@ export const presets: DemoPreset[] = [
     summary: '일반 업무 요청',
   },
 ]
-
-export const agentScenarios: AgentScenarioPreset[] = [
-  {
-    id: 'malicious-install',
-    title: '악성 Skill 설치',
-    summary: '다운로드 단계에서 위험 신호를 탐지하고 차단합니다.',
-  },
-  {
-    id: 'safe-workflow',
-    title: '정상 업무 시나리오',
-    summary: '정상 업무 툴 체인을 검사 후 허용합니다.',
-  },
-]
-

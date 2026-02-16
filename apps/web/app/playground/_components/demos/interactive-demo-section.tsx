@@ -163,7 +163,7 @@ export function InteractiveDemoSection() {
   }, [searchParams, pathname, router, payloadText, runDetection])
 
   return (
-    <section className="grid gap-6 rounded-2xl border border-border bg-white p-7 shadow-subtle md:p-10">
+    <section className="grid gap-6 rounded-2xl border border-border bg-surface p-7 md:p-10">
       <SectionHeader
         title="인터랙티브 보안 데모"
         description="공격 시나리오를 선택하거나 직접 payload를 입력해 SapperAI 탐지 결과를 확인하세요."
@@ -187,7 +187,7 @@ export function InteractiveDemoSection() {
               key={preset.id}
               type="button"
               className={`rounded-xl border px-4 py-3 text-left transition ${
-                isActive ? 'border-ink bg-ink text-white shadow-lifted' : 'border-border bg-white text-ink hover:bg-muted'
+                isActive ? 'border-ink bg-ink text-white' : 'border-border bg-surface text-ink hover:bg-muted'
               }`}
               onClick={() => handlePresetChange(preset)}
             >
@@ -203,7 +203,7 @@ export function InteractiveDemoSection() {
           <label className="grid gap-2 text-sm font-medium text-steel">
             Tool 이름
             <input
-              className="rounded-lg border border-border bg-white px-3 py-2 text-base text-ink outline-none transition focus:border-ink focus:ring-1 focus:ring-ink"
+              className="rounded-lg border border-border bg-surface px-3 py-2 text-base text-ink outline-none transition focus:border-ink focus:ring-1 focus:ring-ink"
               value={toolName}
               onChange={(event) => setToolName(event.target.value)}
             />
@@ -253,10 +253,10 @@ export function InteractiveDemoSection() {
                   variant={result.action === 'block' ? 'block' : 'allow'}
                   label={result.action === 'block' ? 'BLOCK' : 'ALLOW'}
                 />
-                <span className="rounded-full border border-border bg-white px-3 py-0.5 text-xs font-medium tabular-nums text-steel">
+                <span className="rounded-full border border-border bg-surface px-3 py-0.5 text-xs font-medium tabular-nums text-steel">
                   Risk {(result.risk * 100).toFixed(1)}%
                 </span>
-                <span className="rounded-full border border-border bg-white px-3 py-0.5 text-xs font-medium tabular-nums text-steel">
+                <span className="rounded-full border border-border bg-surface px-3 py-0.5 text-xs font-medium tabular-nums text-steel">
                   Confidence {(result.confidence * 100).toFixed(1)}%
                 </span>
               </div>
@@ -265,7 +265,7 @@ export function InteractiveDemoSection() {
                 <p className="text-sm font-semibold text-ink">판단 이유</p>
                 <ul className="grid gap-1.5">
                   {result.reasons.map((reason) => (
-                    <li key={reason} className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-steel">
+                    <li key={reason} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-steel">
                       {reason}
                     </li>
                   ))}
@@ -278,7 +278,7 @@ export function InteractiveDemoSection() {
                 <p className="text-sm font-semibold text-ink">탐지기 근거</p>
                 <div className="grid gap-1.5">
                   {result.evidence.map((entry) => (
-                    <div key={entry.detectorId} className="rounded-lg border border-border bg-white p-3">
+                    <div key={entry.detectorId} className="rounded-lg border border-border bg-surface p-3">
                       <p className="text-xs font-semibold uppercase tracking-wider text-steel">{entry.detectorId}</p>
                       <p className="mt-1 text-xs tabular-nums text-steel">
                         Risk {(entry.risk * 100).toFixed(1)}% / Confidence {(entry.confidence * 100).toFixed(1)}%

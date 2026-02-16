@@ -58,7 +58,7 @@ export function UploadSection() {
   }
 
   return (
-    <section className="grid gap-6 rounded-2xl border border-border bg-white p-7 shadow-subtle md:p-10">
+    <section className="grid gap-6 rounded-2xl border border-border bg-surface p-7 md:p-10">
       <SectionHeader
         title="skill.md 업로드 위험 분석"
         description="Skill 문서를 업로드하면 SapperAI가 install-scan 컨텍스트로 위험도를 분석합니다. (최대 1MB, UTF-8 markdown)"
@@ -119,10 +119,10 @@ export function UploadSection() {
                   variant={uploadResult.action === 'block' ? 'block' : 'allow'}
                   label={uploadResult.action === 'block' ? 'BLOCK' : 'ALLOW'}
                 />
-                <span className="rounded-full border border-border bg-white px-3 py-0.5 text-xs font-medium tabular-nums text-steel">
+                <span className="rounded-full border border-border bg-surface px-3 py-0.5 text-xs font-medium tabular-nums text-steel">
                   Risk {(uploadResult.risk * 100).toFixed(1)}%
                 </span>
-                <span className="rounded-full border border-border bg-white px-3 py-0.5 text-xs font-medium tabular-nums text-steel">
+                <span className="rounded-full border border-border bg-surface px-3 py-0.5 text-xs font-medium tabular-nums text-steel">
                   Confidence {(uploadResult.confidence * 100).toFixed(1)}%
                 </span>
               </div>
@@ -137,7 +137,7 @@ export function UploadSection() {
                 <p className="text-sm font-semibold text-ink">판단 이유</p>
                 <ul className="grid gap-1.5">
                   {uploadResult.reasons.map((reason) => (
-                    <li key={reason} className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-steel">
+                    <li key={reason} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-steel">
                       {reason}
                     </li>
                   ))}
@@ -150,7 +150,7 @@ export function UploadSection() {
                 <p className="text-sm font-semibold text-ink">탐지기 근거</p>
                 <div className="grid gap-1.5">
                   {uploadResult.evidence.map((entry) => (
-                    <div key={`${entry.detectorId}-${entry.risk}`} className="rounded-lg border border-border bg-white p-3">
+                    <div key={`${entry.detectorId}-${entry.risk}`} className="rounded-lg border border-border bg-surface p-3">
                       <p className="text-xs font-semibold uppercase tracking-wider text-steel">{entry.detectorId}</p>
                       <p className="mt-1 text-xs tabular-nums text-steel">
                         Risk {(entry.risk * 100).toFixed(1)}% / Confidence {(entry.confidence * 100).toFixed(1)}%
@@ -166,4 +166,3 @@ export function UploadSection() {
     </section>
   )
 }
-

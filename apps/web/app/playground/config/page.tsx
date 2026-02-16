@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type { Policy } from '@sapper-ai/types'
@@ -33,7 +32,7 @@ export default function PlaygroundConfigPage() {
   const load = useCallback(async (): Promise<void> => {
     setError(null)
     try {
-      const res = await fetch('/api/dashboard/policy', { cache: 'no-store' })
+      const res = await fetch('/api/policy', { cache: 'no-store' })
       const payload = (await res.json()) as PolicyReadResponse | { error?: string }
       if (!res.ok) {
         const msg = 'error' in payload && payload.error ? payload.error : '정책을 불러오지 못했습니다.'
@@ -60,7 +59,7 @@ export default function PlaygroundConfigPage() {
 
   return (
     <div className="grid gap-6">
-      <section className="rounded-2xl border border-border bg-white p-6 shadow-subtle">
+      <section className="rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-ink">Runtime Config</p>
@@ -73,7 +72,7 @@ export default function PlaygroundConfigPage() {
             <button
               type="button"
               onClick={() => void load()}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-white px-4 py-2 text-sm font-semibold text-ink shadow-subtle transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-ink transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
               disabled={loading}
             >
               {loading && (
@@ -81,23 +80,17 @@ export default function PlaygroundConfigPage() {
               )}
               Refresh
             </button>
-            <Link
-              href="/dashboard/policy"
-              className="inline-flex items-center justify-center rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
-            >
-              Open Policy Editor
-            </Link>
           </div>
         </div>
       </section>
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700 shadow-subtle">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      <section className="grid gap-3 rounded-2xl border border-border bg-white p-6 shadow-subtle">
+      <section className="grid gap-3 rounded-2xl border border-border bg-surface p-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-steel">Paths</p>
         <div className="grid gap-2 text-sm text-steel">
           <p>
@@ -118,7 +111,7 @@ export default function PlaygroundConfigPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 rounded-2xl border border-border bg-white p-6 shadow-subtle">
+      <section className="grid gap-3 rounded-2xl border border-border bg-surface p-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-steel">Current YAML</p>
         <pre className="max-h-[520px] overflow-auto rounded-xl border border-border bg-[#0a0a0a] p-4 text-xs leading-relaxed text-gray-100">
           {data?.rawYaml ?? (loading ? 'Loading...' : 'No data')}
@@ -127,4 +120,3 @@ export default function PlaygroundConfigPage() {
     </div>
   )
 }
-

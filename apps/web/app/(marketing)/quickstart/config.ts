@@ -12,7 +12,7 @@ export type QuickstartStep = {
   blocks: QuickstartCodeBlock[]
 }
 
-export const quickstartTargetOrder = ['sdk', 'mcp', 'agents'] as const
+export const quickstartTargetOrder = ['sdk', 'mcp'] as const
 export type QuickstartTarget = (typeof quickstartTargetOrder)[number]
 
 export type QuickstartTargetConfig = {
@@ -36,7 +36,6 @@ export const quickstartTargets: Record<QuickstartTarget, QuickstartTargetConfig>
     highlights: [
       { title: '3줄 연동', description: '`createGuard()` + `guard.check()`로 즉시 적용' },
       { title: '프리셋 정책', description: 'monitor/standard/strict/paranoid 등 프리셋 제공' },
-      { title: '대시보드', description: '`npx sapper-ai dashboard`로 /dashboard에서 흐름 확인' },
     ],
     steps: [
       {
@@ -96,17 +95,6 @@ export const quickstartTargets: Record<QuickstartTarget, QuickstartTargetConfig>
               "  throw new Error(`Blocked: ${decision.reasons.join(', ')}`)",
               '}',
             ].join('\n'),
-          },
-        ],
-      },
-      {
-        title: '4) (선택) 대시보드 실행',
-        description: '기본 포트는 `http://localhost:3000/dashboard` 입니다.',
-        blocks: [
-          {
-            language: 'bash',
-            title: 'Dashboard',
-            code: ['npx sapper-ai dashboard'].join('\n'),
           },
         ],
       },
@@ -191,88 +179,10 @@ export const quickstartTargets: Record<QuickstartTarget, QuickstartTargetConfig>
       },
     ],
   },
-  agents: {
-    label: 'OpenAI Agents',
-    tagline: '@openai/agents tool guardrail (input/output)',
-    pageTitle: 'Quickstart (OpenAI Agents)',
-    pageDescription: 'OpenAI Agents SDK에 tool input/output guardrails를 연결합니다.',
-    intro:
-      '`@openai/agents`를 쓰고 있다면 guardrail을 함수로 주입하는 방식이 가장 깔끔합니다. tool arguments/results가 실행 전후로 자동 검사됩니다.',
-    highlights: [
-      { title: 'Input/Output', description: 'tool 입력과 결과 모두를 스캔' },
-      { title: 'Rules-first', description: '기본은 규칙 기반 탐지로 빠르게 동작' },
-      { title: 'Fail-open', description: '탐지기 오류 시 실행을 유지하도록 설계 가능' },
-    ],
-    steps: [
-      {
-        title: '1) 설치',
-        blocks: [
-          {
-            language: 'bash',
-            title: 'Install',
-            code: ['pnpm add @sapper-ai/openai @sapper-ai/core @openai/agents', '# or', 'npm install @sapper-ai/openai @sapper-ai/core @openai/agents'].join(
-              '\n'
-            ),
-          },
-        ],
-      },
-      {
-        title: '2) 환경 변수 설정 (서버 런타임)',
-        description: 'OpenAI 모델을 쓰는 경우 서버 환경 변수에 `OPENAI_API_KEY`를 설정합니다.',
-        blocks: [
-          {
-            language: 'bash',
-            title: 'Env (server)',
-            code: ['# Run in your server environment', 'export OPENAI_API_KEY="..."'].join('\n'),
-          },
-        ],
-      },
-      {
-        title: '3) Guardrail 연결',
-        description: 'enforce/monitor 모드를 상황에 맞게 선택하세요.',
-        blocks: [
-          {
-            language: 'ts',
-            title: 'Agents SDK Usage',
-            code: [
-              "import { createToolInputGuardrail, createToolOutputGuardrail } from '@sapper-ai/openai'",
-              "import { RulesDetector, DecisionEngine } from '@sapper-ai/core'",
-              "import { Agent } from '@openai/agents'",
-              '',
-              'const detector = new RulesDetector()',
-              'const engine = new DecisionEngine([detector])',
-              '',
-              'const inputGuardrail = createToolInputGuardrail(engine, {',
-              "  mode: 'enforce',",
-              "  defaultAction: 'allow',",
-              '  failOpen: true,',
-              '})',
-              '',
-              'const outputGuardrail = createToolOutputGuardrail(engine, {',
-              "  mode: 'monitor',",
-              "  defaultAction: 'allow',",
-              '  failOpen: true,',
-              '})',
-              '',
-              'const agent = new Agent({',
-              "  model: 'gpt-4',",
-              '  tools: [myTool],',
-              '  inputGuardrail,',
-              '  outputGuardrail,',
-              '})',
-              '',
-              "const response = await agent.run('Execute command: rm -rf /')",
-            ].join('\n'),
-          },
-        ],
-      },
-    ],
-  },
 }
 
 export function resolveQuickstartTarget(value: string): QuickstartTarget | null {
   if ((quickstartTargetOrder as readonly string[]).includes(value)) return value as QuickstartTarget
   if (value === 'dev') return 'sdk'
-  if (value === 'openai') return 'agents'
   return null
 }

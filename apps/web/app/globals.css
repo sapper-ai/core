@@ -3,20 +3,34 @@
 @tailwind utilities;
 
 :root {
-  --ink: #0a0a0a;
-  --steel: #4b5563;
-  --frost: #fafafa;
-  --mint: #22c55e;
-  --ember: #ef4444;
-  --signal: #3b82f6;
-  --warn: #f59e0b;
-  --border: #e5e7eb;
-  --surface: #ffffff;
-  --muted: #f3f4f6;
+  --color-frost: 250 250 250;
+  --color-surface: 255 255 255;
+  --color-ink: 10 10 10;
+  --color-steel: 75 85 99;
+  --color-border: 229 231 235;
+  --color-muted: 243 244 246;
+  --color-signal: 59 130 246;
+  --color-mint: 34 197 94;
+  --color-ember: 239 68 68;
+  --color-warn: 245 158 11;
+
   --font-body: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR',
     'Segoe UI', Arial, sans-serif;
-  --font-heading: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Apple SD Gothic Neo',
-    'Segoe UI', Arial, sans-serif;
+  --font-heading: 'SF Mono', 'Cascadia Code', ui-monospace, 'Noto Sans KR', monospace;
+  --font-mono: 'SF Mono', 'Cascadia Code', ui-monospace, monospace;
+}
+
+.dark {
+  --color-frost: 10 10 10;
+  --color-surface: 26 26 26;
+  --color-ink: 229 231 235;
+  --color-steel: 156 163 175;
+  --color-border: 45 58 46;
+  --color-muted: 31 42 31;
+  --color-signal: 143 168 92;
+  --color-mint: 74 222 128;
+  --color-ember: 248 113 113;
+  --color-warn: 251 191 36;
 }
 
 * {
@@ -25,8 +39,8 @@
 
 body {
   margin: 0;
-  color: var(--ink);
-  background: var(--frost);
+  color: rgb(var(--color-ink));
+  background: rgb(var(--color-frost));
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -37,5 +51,5 @@ h2,
 h3,
 h4 {
   font-family: var(--font-heading);
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
 }

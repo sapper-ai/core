@@ -24,9 +24,7 @@ export default function PlaygroundIndexPage({ searchParams }: { searchParams: Se
   const target =
     demo === 'skill-scan' || demo === 'upload'
       ? '/playground/skill-scan'
-      : demo === 'agent'
-        ? '/playground/agent'
-        : demo === 'config'
+      : demo === 'config'
           ? '/playground/config'
         : demo === 'adversary' || demo === 'campaign'
           ? '/playground/adversary'

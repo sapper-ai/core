@@ -15,7 +15,6 @@ export const metadata: Metadata = {
 const tabs = [
   { href: '/playground/runtime', label: 'Runtime' },
   { href: '/playground/skill-scan', label: 'Skill Scan' },
-  { href: '/playground/agent', label: 'Agent' },
   { href: '/playground/adversary', label: 'Adversary' },
   { href: '/playground/config', label: 'Config' },
 ] as const
@@ -31,10 +30,6 @@ export default function PlaygroundLayout({ children }: { children: ReactNode }) 
         <div className="flex items-center gap-3 text-sm">
           <Link href="/" className="font-medium text-signal hover:underline">
             Marketing
-          </Link>
-          <span className="text-gray-300">|</span>
-          <Link href="/dashboard" className="font-medium text-signal hover:underline">
-            Dashboard
           </Link>
         </div>
       </header>

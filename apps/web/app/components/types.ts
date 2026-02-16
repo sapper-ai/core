@@ -34,40 +34,6 @@ export type PipelineStep = {
   status: 'clear' | 'warning' | 'critical'
 }
 
-export type AgentScenarioPreset = {
-  id: 'malicious-install' | 'safe-workflow'
-  title: string
-  summary: string
-}
-
-export type AgentRunStep = {
-  stepId: string
-  label: string
-  toolName: string
-  argumentsPreview: string
-  blocked: boolean
-  executed: boolean
-  timestamp: string
-  durationMs: number
-  analysis: string
-  decision: DetectionResponse
-}
-
-export type AgentDemoResponse = {
-  runId: string
-  model: string
-  scenario: {
-    id: string
-    title: string
-  }
-  halted: boolean
-  executeBlocked: boolean
-  blockedCount: number
-  allowedCount: number
-  steps: AgentRunStep[]
-  summary: string
-}
-
 export type CampaignDistribution = {
   key: string
   total: number

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function PlaygroundAdversaryPage() {
   return (
     <div className="grid gap-6">
-      <section className="rounded-2xl border border-border bg-white p-6 shadow-subtle">
+      <section className="rounded-2xl border border-border bg-surface p-6">
         <p className="text-sm font-semibold text-ink">Deep links</p>
         <p className="mt-1 text-xs text-steel">
           Supports <code className="rounded bg-muted px-1 py-0.5">?autorun=1</code> and{' '}
@@ -21,20 +21,20 @@ export default function PlaygroundAdversaryPage() {
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href={{ pathname: '/playground/adversary', query: { autorun: '1' } }}
-            className="rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-white"
+            className="rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-surface"
           >
             Autorun (config policy)
           </Link>
           <Link
             href={{ pathname: '/playground/adversary', query: { autorun: '1', useDefaultPolicy: '1' } }}
-            className="rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-white"
+            className="rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-surface"
           >
             Autorun (default policy)
           </Link>
         </div>
       </section>
 
-      <Suspense fallback={<div className="rounded-2xl border border-border bg-white p-6 text-sm text-steel shadow-subtle">Loading...</div>}>
+      <Suspense fallback={<div className="rounded-2xl border border-border bg-surface p-6 text-sm text-steel">Loading...</div>}>
         <CampaignSection />
       </Suspense>
     </div>

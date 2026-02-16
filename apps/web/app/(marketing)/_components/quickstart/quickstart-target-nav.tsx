@@ -13,8 +13,8 @@ export function QuickstartTargetNav({ currentTarget }: { currentTarget: Quicksta
           <Link
             key={targetId}
             href={`/quickstart/${targetId}`}
-            className={`rounded-2xl border p-5 shadow-subtle transition ${
-              isActive ? 'border-ink bg-ink text-white' : 'border-border bg-white text-ink hover:bg-muted'
+            className={`rounded-lg border p-5 transition-colors ${
+              isActive ? 'border-ink bg-ink text-white' : 'border-border bg-surface text-ink hover:bg-muted'
             }`}
           >
             <p className={`text-sm font-semibold ${isActive ? 'text-white' : 'text-ink'}`}>{target.label}</p>
@@ -27,4 +27,3 @@ export function QuickstartTargetNav({ currentTarget }: { currentTarget: Quicksta
     </nav>
   )
 }
-

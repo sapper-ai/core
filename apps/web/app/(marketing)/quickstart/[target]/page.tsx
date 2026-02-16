@@ -50,7 +50,7 @@ export default function QuickstartTargetPage({ params }: { params: { target: str
 
       <section className="grid gap-3 md:grid-cols-3">
         {config.highlights.map((item) => (
-          <article key={item.title} className="rounded-2xl border border-border bg-white p-5 shadow-subtle">
+          <article key={item.title} className="rounded-lg border border-border bg-surface p-5">
             <h2 className="text-sm font-semibold text-ink">{item.title}</h2>
             <p className="mt-1.5 text-xs leading-relaxed text-steel">{item.description}</p>
           </article>
@@ -59,7 +59,7 @@ export default function QuickstartTargetPage({ params }: { params: { target: str
 
       <section className="grid gap-4">
         {config.steps.map((step) => (
-          <article key={step.title} className="rounded-2xl border border-border bg-white p-6 shadow-subtle md:p-8">
+          <article key={step.title} className="rounded-lg border border-border bg-surface p-6 md:p-8">
             <div className="grid gap-1">
               <h2 className="text-lg font-semibold text-ink">{step.title}</h2>
               {step.description && <p className="text-sm leading-relaxed text-steel">{step.description}</p>}

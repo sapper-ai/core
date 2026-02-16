@@ -85,7 +85,7 @@ export function CampaignSection() {
   }, [searchParams, pathname, router, runCampaign])
 
   return (
-    <section className="grid gap-6 rounded-2xl border border-border bg-white p-7 shadow-subtle md:p-10">
+    <section className="grid gap-6 rounded-2xl border border-border bg-surface p-7 md:p-10">
       <SectionHeader
         title="Adversary Campaign Demo"
         description="원클릭으로 공격 캠페인을 실행해 탐지율, 유형 분포, 심각도 분포를 자동 리포트합니다."
@@ -112,7 +112,7 @@ export function CampaignSection() {
 
           {campaignResult && (
             <div className="grid gap-3">
-              <div className="rounded-xl border border-border bg-white p-4">
+              <div className="rounded-xl border border-border bg-surface p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-4">
                     <CircularGauge value={campaignResult.detectionRate} label="detect" />
@@ -215,7 +215,7 @@ export function CampaignSection() {
                 <p className="text-sm font-semibold text-ink">Top Detection Reasons</p>
                 <ul className="grid gap-1.5">
                   {campaignResult.topReasons.map((reason) => (
-                    <li key={reason} className="rounded-lg border border-border bg-white px-3 py-2 text-xs text-steel">
+                    <li key={reason} className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-steel">
                       {reason}
                     </li>
                   ))}
@@ -228,7 +228,7 @@ export function CampaignSection() {
                   <p className="text-xs text-steel">{campaignResult.cases.length}건</p>
                 </div>
 
-                <div className="max-h-80 overflow-auto rounded-xl border border-border bg-white">
+                <div className="max-h-80 overflow-auto rounded-xl border border-border bg-surface">
                   <div className="min-w-[860px]">
                     <div className="sticky top-0 z-10 grid grid-cols-[minmax(260px,1.2fr)_160px_120px_110px_1fr] gap-3 border-b border-border bg-muted px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-steel">
                       <div>Label</div>
