@@ -1,0 +1,217 @@
+
+  스캔 환경
+
+  항목: 스캔 시각
+  값: 2026-02-14T11:15:02.719Z
+  ────────────────────────────────────────
+  항목: 대상 경로
+  값: /Users/kimgyudong/code
+  ────────────────────────────────────────
+  항목: 범위
+  값: Current + subdirectories (전체 하위 디렉토리)
+  ────────────────────────────────────────
+  항목: 전체 파일
+  값: 83,220개
+  ────────────────────────────────────────
+  항목: 스캔된 파일
+  값: 104개 (0.12%)
+  ────────────────────────────────────────
+  항목: 스킵된 파일
+  값: 83,116개
+  ────────────────────────────────────────
+  항목: AI 스캔
+  값: 활성화 (OpenAI LLM Detector)
+
+  ---
+  탐지 요약
+
+  ┌──────────────────────────────┬──────┬───────────┐
+  │             구분             │ 건수 │   판정    │
+  ├──────────────────────────────┼──────┼───────────┤
+  │ Critical (risk >= 0.8) BLOCK │ 17건 │ 전부 오탐 │
+  ├──────────────────────────────┼──────┼───────────┤
+  │ High (risk 0.5~0.8) ALLOW    │ 5건  │ 전부 오탐 │
+  ├──────────────────────────────┼──────┼───────────┤
+  │ Medium/Low risk detected     │ 8건  │ 전부 오탐 │
+  ├──────────────────────────────┼──────┼───────────┤
+  │ Clean (risk 0)               │ 74건 │ 정상      │
+  ├──────────────────────────────┼──────┼───────────┤
+  │ 합계 위협                    │ 30건 │ 전부 오탐 │
+  └──────────────────────────────┴──────┴───────────┘
+
+  ---
+  오탐 상세 분류
+
+  1. "path traversal" 패턴 — 12건 (전부 오탐)
+
+  탐지된 파일: cross_checker/ 하위 다수의 AGENTS.md 파일
+
+  탐지 원인: AGENTS.md 파일 최상단의 HTML 주석
+  <!-- Parent: ../AGENTS.md -->
+  이 ../ 상대 경로가 RulesDetector의 path traversal 규칙에
+  매칭됨.
+
+  오탐 근거: 이것은 문서 계층 구조를 표시하는 마크다운
+  주석이며, 실제 파일시스템 경로를 조작하는 코드가 아님.
+  deepinit 스킬이 자동 생성하는 표준 패턴.
+
+  해당 파일 목록:
+  - cross_checker/apps/AGENTS.md (risk 0.8, BLOCK)
+  - cross_checker/apps/chatgpt-extension/AGENTS.md (risk
+  0.8, BLOCK)
+  - cross_checker/apps/gemini-extension/AGENTS.md (risk
+  0.8, BLOCK)
+  - cross_checker/docs/AGENTS.md (risk 0.8, BLOCK)
+  - cross_checker/e2e/AGENTS.md (risk 0.95, BLOCK)
+  - cross_checker/packages/shared/AGENTS.md (risk 0.8,
+  BLOCK)
+  - cross_checker/packages/shared/src/background/AGENTS.md
+  (risk 0.8, BLOCK)
+  - cross_checker/packages/shared/src/components/AGENTS.md
+  (risk 0.8, BLOCK)
+  - cross_checker/packages/shared/src/hooks/AGENTS.md (risk
+   0.8, BLOCK)
+  - cross_checker/packages/shared/src/injector/AGENTS.md
+  (risk 0.8, BLOCK)
+  - cross_checker/packages/shared/src/storage/AGENTS.md
+  (risk 0.8, BLOCK)
+  - cross_checker/packages/shared/src/types/AGENTS.md (risk
+   0.8, BLOCK)
+
+  ---
+  2. "secret exfiltration" 패턴 — 3건 (전부 오탐)
+
+  탐지된 파일:
+  - hookify/skills/writing-rules/SKILL.md (risk 0.95,
+  BLOCK)
+  - shorts_gen/.claude/skills/nano-banana-pro/SKILL.md
+  (risk 0.95, BLOCK)
+
+  탐지 원인: SKILL.md 파일 내에 외부 API 호출 가이드 내용이
+   포함되어 있어 "데이터를 외부로 전송"하는 패턴으로 매칭.
+
+  오탐 근거:
+  - hookify 파일은 hook 규칙 작성법을 설명하는 문서
+  - nano-banana-pro는 Gemini 이미지 생성 API 사용 가이드
+  - 두 파일 모두 실행 코드가 아닌 문서/가이드 파일이며,
+  실제 secret 유출 행위 없음
+
+  ---
+  3. "system prompt" / "system override prefix" 패턴 — 3건
+  (전부 오탐)
+
+  탐지된 파일:
+  - claude-opus-4-5-migration/skills/.../SKILL.md (risk
+  0.8, BLOCK) — "system prompt"
+  - plugin-dev/skills/agent-development/SKILL.md (risk 0.8,
+   BLOCK) — "system prompt"
+  - plugin-dev/skills/hook-development/SKILL.md (risk 0.8,
+  BLOCK) — "system override prefix"
+
+  탐지 원인: Claude Code 플러그인 SKILL.md 파일 내에
+  "system prompt" 관련 용어 사용.
+
+  오탐 근거: SKILL.md는 설계상 AI 에이전트에게 시스템
+  프롬프트 수준의 지시를 제공하는 파일. "system prompt"라는
+   단어를 문서 내용으로 포함하는 것은 정상 동작이며,
+  프롬프트 인젝션 공격이 아님.
+
+  ---
+  4. "command substitution" 패턴 — 5건 (전부 오탐)
+
+  탐지된 파일:
+  - plugin-dev/skills/plugin-settings/SKILL.md (risk 0.8,
+  BLOCK)
+  - OMC 스킬: cancel-ralph/SKILL.md,
+  cancel-ultraqa/SKILL.md, cancel-ultrawork/SKILL.md,
+  doctor/SKILL.md, hud/SKILL.md (risk 0.8, BLOCK)
+
+  탐지 원인: 스킬 파일 내 bash 코드 예시에서 $(date
+  -Iseconds), $(cat ...) 같은 셸 command substitution 구문
+  사용.
+
+  오탐 근거: 이 파일들은 사용자가 실행할 bash 명령어를
+  문서화한 것이며, 악의적 명령 주입이 아님. OMC 취소 스킬이
+   상태 파일을 정리하기 위한 정상적인 셸 명령.
+
+  ---
+  5. "bypass" 패턴 — 3건 (전부 오탐)
+
+  탐지된 파일:
+  - SapperAI/packages/core/src/AGENTS.md (risk 0.6, ALLOW)
+  - SapperAI/packages/mcp/src/AGENTS.md (risk 0.6, ALLOW)
+  - plugin-dev/skills/command-development/SKILL.md (risk
+  0.6, ALLOW)
+
+  탐지 원인: AGENTS.md에서 SapperAI의 보안 기능을
+  설명하면서 "bypass" 단어 사용 (예: bypass 탐지 규칙
+  설명).
+
+  오탐 근거: 보안 도구의 문서가 "bypass"를 언급하는 것은
+  자연스러움. SapperAI 자체 문서가 자기 자신의 규칙에 걸린
+  아이러니한 상황.
+
+  ---
+  6. "template injection" 패턴 — 2건 (전부 오탐)
+
+  탐지된 파일:
+  - ralph-init/SKILL.md (risk 0.8, BLOCK)
+  - ralph/SKILL.md (risk 0.8, BLOCK)
+
+  탐지 원인: {{ITERATION}}/{{MAX}} 형태의
+  Mustache/Handlebars 스타일 템플릿 변수.
+
+  오탐 근거: 이것은 OMC가 런타임에 치환하는 플레이스홀더
+  변수이며, 서버사이드 템플릿 인젝션(SSTI) 공격이 아님.
+
+  ---
+  7. 기타 패턴
+
+  패턴: "conversation history"
+  파일: cross_checker/e2e/AGENTS.md, services/AGENTS.md
+  오탐 근거: E2E 테스트와 서비스 파일이 "대화 이력" 처리를
+    설명하는 문서
+  ────────────────────────────────────────
+  패턴: "unicode bypass"
+  파일: cross_checker/.../constants/AGENTS.md
+  오탐 근거: 상수 파일 문서에서 유니코드 관련 설명
+  ────────────────────────────────────────
+  패턴: "you are now"
+  파일: OMC plan/SKILL.md, ultraqa/SKILL.md
+  오탐 근거: AI 스킬 활성화 메시지의 표준 패턴
+
+  ---
+  AI Detector 실패 분석
+
+  30건 위협 중 AI 분석이 수행된 건수: 0건
+
+  모든 건에서 동일한 에러:
+  Detector llm error: OpenAI request failed with status 429
+
+  의미: HTTP 429 = Too Many Requests. OpenAI API의
+  분당/시간당 요청 한도를 초과. LLM Detector가 Rules
+  Detector의 결과를 재검증하여 오탐을 걸러내는 역할인데,
+  이것이 전혀 작동하지 않아 Rules Detector의 단순 패턴 매칭
+   결과가 그대로 최종 결과가 됨.
+
+  ---
+  스캔 커버리지 분석
+
+  83,220개 파일 중 104개만 스캔 (0.12%):
+  - 스캔된 파일: 주로 .json, .md 설정/문서 파일
+  - 미스캔: .ts, .js, .tsx 등 실제 소스코드 파일은 스캔되지
+   않음
+  - 이유 추정: 파일 확장자 기반 필터링 또는 node_modules
+  등을 제외한 후 남은 설정 파일만 대상으로 한 것
+
+  ---
+  결론
+
+  이 스캔 리포트는 실질적인 보안 위협을 포함하지 않습니다.
+
+  1. 30건 전부 오탐 — Rules Detector의 단순 키워드 매칭이
+  문서 파일의 정상 내용을 위협으로 분류
+  2. AI 검증 전면 실패 — 오탐을 걸러줄 LLM Detector가
+  OpenAI 429 에러로 미작동
+  3. 낮은 커버리지 — 실제 소스코드는 스캔 대상에서 제외되어
+   의미 있는 보안 평가 불가

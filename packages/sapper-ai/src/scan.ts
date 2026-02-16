@@ -18,6 +18,7 @@ import type { Decision, LlmConfig, Policy } from '@sapper-ai/types'
 
 import { getAuthPath, loadOpenAiApiKey, promptAndSaveOpenAiApiKey } from './auth'
 import { presets } from './presets'
+import { createProgressBar } from './utils/progress'
 import { createColors, header, padLeft, padRightVisual, riskColor, table, truncateToWidth } from './utils/format'
 import { findRepoRoot } from './utils/repoRoot'
 
@@ -543,23 +544,38 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
   let scannedFiles = 0
   let skippedEmptyOrUnreadable = 0
 
-  for (const filePath of eligibleFiles) {
-    const result = await scanFile(filePath, policy, scanner, detectors, fix, quarantineManager)
+  const rulesProgress = createProgressBar({
+    label: aiEnabled ? 'Phase 1 rules' : 'Scan',
+    total: eligibleFiles.length,
+    colors,
+  })
 
-    if (result.skipReason === 'empty_or_unreadable') {
-      skippedEmptyOrUnreadable += 1
-      continue
-    }
+  rulesProgress.start()
+  try {
+    for (const filePath of eligibleFiles) {
+      try {
+        const result = await scanFile(filePath, policy, scanner, detectors, fix, quarantineManager)
 
-    if (result.scanned && result.decision) {
-      scannedFiles += 1
-      scannedFindings.push({
-        filePath,
-        decision: result.decision,
-        quarantinedId: result.quarantinedId,
-        source: aiEnabled ? 'rules' : undefined,
-      })
+        if (result.skipReason === 'empty_or_unreadable') {
+          skippedEmptyOrUnreadable += 1
+          continue
+        }
+
+        if (result.scanned && result.decision) {
+          scannedFiles += 1
+          scannedFindings.push({
+            filePath,
+            decision: result.decision,
+            quarantinedId: result.quarantinedId,
+            source: aiEnabled ? 'rules' : undefined,
+          })
+        }
+      } finally {
+        rulesProgress.tick(filePath)
+      }
     }
+  } finally {
+    rulesProgress.done()
   }
 
   let aiTargetsCount = 0
@@ -580,54 +596,67 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
       const aiPolicy: Policy = { ...policy, llm: llmConfig, detectors: detectorsList }
       const aiDetectors = createDetectors({ policy: aiPolicy, preferredDetectors: ['rules', 'llm'] })
 
-      for (const finding of aiTargets) {
-        try {
-          const raw = await readFileIfPresent(finding.filePath)
-          if (!raw) continue
-          const surface = normalizeSurfaceText(raw)
-          const targetType = classifyTargetType(finding.filePath)
-          const id = `${targetType}:${buildEntryName(finding.filePath)}`
-          const aiDecision = await scanner.scanTool(id, surface, aiPolicy, aiDetectors, {
-            scanSource: 'file_surface',
-            sourcePath: finding.filePath,
-            sourceType: targetType,
-          })
+      const aiProgress = createProgressBar({
+        label: 'Phase 2 ai',
+        total: aiTargets.length,
+        colors,
+      })
 
-          const aiDominates = aiDecision.risk > finding.decision.risk
-          const mergedReasons = aiDominates
-            ? uniq([...aiDecision.reasons, ...finding.decision.reasons])
-            : uniq([...finding.decision.reasons, ...aiDecision.reasons])
-          const existingEvidence = finding.decision.evidence
-          const mergedEvidence = [...existingEvidence]
-          for (const ev of aiDecision.evidence) {
-            if (!mergedEvidence.some((e) => e.detectorId === ev.detectorId)) {
-              mergedEvidence.push(ev)
+      aiProgress.start()
+      try {
+        for (const finding of aiTargets) {
+          try {
+            const raw = await readFileIfPresent(finding.filePath)
+            if (!raw) continue
+            const surface = normalizeSurfaceText(raw)
+            const targetType = classifyTargetType(finding.filePath)
+            const id = `${targetType}:${buildEntryName(finding.filePath)}`
+            const aiDecision = await scanner.scanTool(id, surface, aiPolicy, aiDetectors, {
+              scanSource: 'file_surface',
+              sourcePath: finding.filePath,
+              sourceType: targetType,
+            })
+
+            const aiDominates = aiDecision.risk > finding.decision.risk
+            const mergedReasons = aiDominates
+              ? uniq([...aiDecision.reasons, ...finding.decision.reasons])
+              : uniq([...finding.decision.reasons, ...aiDecision.reasons])
+            const existingEvidence = finding.decision.evidence
+            const mergedEvidence = [...existingEvidence]
+            for (const ev of aiDecision.evidence) {
+              if (!mergedEvidence.some((e) => e.detectorId === ev.detectorId)) {
+                mergedEvidence.push(ev)
+              }
             }
-          }
 
-          const nextDecision = {
-            ...finding.decision,
-            reasons: mergedReasons,
-            evidence: mergedEvidence,
-          }
-
-          if (aiDominates) {
-            finding.source = 'ai'
-            finding.decision = {
-              ...nextDecision,
-              action: aiDecision.action,
-              risk: aiDecision.risk,
-              confidence: aiDecision.confidence,
+            const nextDecision = {
+              ...finding.decision,
+              reasons: mergedReasons,
+              evidence: mergedEvidence,
             }
-          } else {
-            finding.source = finding.source ?? 'rules'
-            finding.decision = nextDecision
-          }
 
-          finding.aiAnalysis =
-            aiDecision.reasons.find((r) => !r.startsWith('Detected pattern:')) ?? null
-        } catch {
+            if (aiDominates) {
+              finding.source = 'ai'
+              finding.decision = {
+                ...nextDecision,
+                action: aiDecision.action,
+                risk: aiDecision.risk,
+                confidence: aiDecision.confidence,
+              }
+            } else {
+              finding.source = finding.source ?? 'rules'
+              finding.decision = nextDecision
+            }
+
+            finding.aiAnalysis =
+              aiDecision.reasons.find((r) => !r.startsWith('Detected pattern:')) ?? null
+          } catch {
+          } finally {
+            aiProgress.tick(finding.filePath)
+          }
         }
+      } finally {
+        aiProgress.done()
       }
     }
   }
