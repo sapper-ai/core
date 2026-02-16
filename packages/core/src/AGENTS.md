@@ -23,7 +23,7 @@
 - Tests live under `src/__tests__`, grouped by feature (`detectors`, `engine`, `intel`, `quarantine`, etc.).
 
 ## ANTI-PATTERNS
-- Do not add detector logic directly in `mcp` or `openai`; implement detector in `core/detectors` and wire in factory.
+- Do not add detector logic directly in `mcp` or web/CLI integrations; implement detector in `core/detectors` and wire in factory.
 - Do not bypass `PolicyManager.resolvePolicy` when tool overrides are relevant.
 - Do not silently swallow security-critical failures without audit reason entries.
 - Do not couple network/file I/O directly into unrelated modules; keep concerns separated.

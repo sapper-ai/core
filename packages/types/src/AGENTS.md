@@ -1,7 +1,7 @@
 # TYPES CONTRACT KNOWLEDGE
 
 ## OVERVIEW
-`@sapper-ai/types` defines the shared security contracts consumed by `core`, `mcp`, and `openai`.
+`@sapper-ai/types` defines the shared security contracts consumed by `core`, `mcp`, `sapper-ai`, and web integrations.
 
 ## WHERE TO LOOK
 | Task | Location | Notes |

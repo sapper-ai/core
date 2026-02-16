@@ -17,7 +17,6 @@
 | `@sapper-ai/types` |  |  |
 | `@sapper-ai/core` |  |  |
 | `@sapper-ai/mcp` |  |  |
-| `@sapper-ai/openai` |  |  |
 
 ## Notable Security Changes
 

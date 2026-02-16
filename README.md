@@ -60,7 +60,6 @@ npx -y sapper-ai@0.6.0 scan --policy ./sapperai.config.yaml --no-prompt --no-ope
 │              │                                               │
 │              ├─► @sapper-ai/mcp (stdio proxy + CLI)          │
 │              │                                               │
-│              └─► @sapper-ai/openai (Agents SDK guardrails)   │
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 
@@ -76,7 +75,6 @@ Detection Pipeline:
 | **[@sapper-ai/types](./packages/types)** | TypeScript type definitions | Custom detectors, integrations |
 | **[@sapper-ai/core](./packages/core)** | Core detection engine (RulesDetector, DecisionEngine, Guard) | Direct integration |
 | **[@sapper-ai/mcp](./packages/mcp)** | MCP security proxy | Wrap any MCP server |
-| **[@sapper-ai/openai](./packages/openai)** | OpenAI Agents SDK guardrails | Drop-in for @openai/agents |
 
 ## Direct Integration (Advanced)
 
@@ -129,7 +127,7 @@ DecisionEngine.assess - large (5KB)  30,785 ops/sec  p99: 0.0424ms
 
 ## Verified Metrics (MVP)
 
-- **Test Coverage**: 90 tests (19 types + 50 core + 11 mcp + 10 openai)
+- **Test Coverage**: 80 tests (19 types + 50 core + 11 mcp)
 - **Detection Rate**: 96% (48/50 malicious samples)
 - **False Positives**: 0% (0/100 benign samples)
 - **Edge Cases**: 0% false positives (0/20 edge case samples)
@@ -151,7 +149,7 @@ pnpm build
 # Build all packages
 pnpm build
 
-# Run tests (90 tests across 4 packages)
+# Run tests (80 tests across 3 packages)
 pnpm test
 
 # Run deterministic security smoke tests

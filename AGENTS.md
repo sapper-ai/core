@@ -5,7 +5,7 @@
 **Branch:** main
 
 ## OVERVIEW
-SapperAI is a TypeScript pnpm/turbo monorepo for AI security guardrails. It provides core detection, MCP proxy/CLI, and OpenAI Agents integration.
+SapperAI is a TypeScript pnpm/turbo monorepo for AI security guardrails. It provides core detection, MCP proxy/CLI, and a unified user-facing CLI package.
 
 ## STRUCTURE
 ```text
@@ -13,7 +13,7 @@ SapperAI/
 ├── packages/
 │   ├── core/      # detection engine, policy, detectors, scanner/guard
 │   ├── mcp/       # stdio proxy, CLI commands, watcher/quarantine, adversary runner
-│   ├── openai/    # OpenAI Agents SDK guardrail adapters
+│   ├── sapper-ai/ # single-install CLI/SDK wrapper package
 │   └── types/     # shared policy/decision interfaces used by all packages
 ├── docs/ops/      # operational runbooks
 ├── .github/workflows/  # release + security-smoke CI
@@ -57,7 +57,7 @@ SapperAI/
 - Expanding CLI parsing with ad-hoc value handling; use shared option validation style.
 
 ## UNIQUE STYLES
-- Monorepo package boundaries are strict: `types -> core -> (mcp/openai)`.
+- Monorepo package boundaries are strict: `types -> core -> (mcp, sapper-ai, web)`.
 - Threat intel behavior is fail-open/fail-closed configurable per policy feed config.
 - Adversary runner stores deterministic artifacts (`summary.json`, `trace.jsonl`, `proposals.json`).
 
