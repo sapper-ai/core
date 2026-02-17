@@ -16,6 +16,7 @@ import { runScan, type ScanOptions } from './scan'
 import { detectOpenClawEnvironment } from './openclaw/detect'
 import { resolveOpenClawPolicy, scanSkills, type OpenClawScanProgressEvent } from './openclaw/scanner'
 import { isCiEnv } from './utils/env'
+import { getStatus as getSetupStatus, registerHooks, removeHooks } from './guard/setup'
 
 export async function runCli(argv: string[] = process.argv.slice(2)): Promise<number> {
   if (argv[0] === '--help' || argv[0] === '-h') {
@@ -71,6 +72,36 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<nu
     }
 
     return runOpenClawWizard()
+  }
+
+  if (argv[0] === 'setup') {
+    if (argv[1] === '--help' || argv[1] === '-h') {
+      printUsage()
+      return 0
+    }
+
+    const parsed = parseSetupArgs(argv.slice(1))
+    if (!parsed) {
+      printUsage()
+      return 1
+    }
+
+    return runSetupCommand(parsed)
+  }
+
+  if (argv[0] === 'guard') {
+    if (argv[1] === '--help' || argv[1] === '-h') {
+      printUsage()
+      return 0
+    }
+
+    const parsed = parseGuardArgs(argv.slice(1))
+    if (!parsed) {
+      printUsage()
+      return 1
+    }
+
+    return runGuardCommand(parsed)
   }
 
   if (argv[0] === 'harden') {
@@ -138,6 +169,15 @@ Usage:
   sapper-ai harden            Plan recommended setup changes (no writes)
   sapper-ai harden --apply    Apply recommended project changes
   sapper-ai harden --include-system   Include system changes (home directory)
+  sapper-ai setup             Register Claude Code hooks for Skill Guard
+  sapper-ai setup --remove    Remove only sapper-ai Skill Guard hooks
+  sapper-ai setup --status    Show current Skill Guard hook registration status
+  sapper-ai guard scan        Run SessionStart guard scan hook
+  sapper-ai guard check       Run UserPromptSubmit guard check hook
+  sapper-ai guard dismiss <name>   Dismiss warning by skill name
+  sapper-ai guard rescan      Clear guard cache, then scan again
+  sapper-ai guard cache list  Show guard cache entries
+  sapper-ai guard cache clear Clear guard cache entries
   sapper-ai mcp wrap-config   Wrap MCP servers to run behind sapperai-proxy (defaults to Claude Code config)
   sapper-ai mcp unwrap-config Undo MCP wrapping
   sapper-ai quarantine list   List quarantined files
@@ -330,6 +370,308 @@ function parseHardenArgs(
     force,
     workflowVersion,
     mcpVersion,
+  }
+}
+
+type SetupCommandArgs = { command: 'setup_register' } | { command: 'setup_remove' } | { command: 'setup_status' }
+
+function parseSetupArgs(argv: string[]): SetupCommandArgs | null {
+  if (argv.length === 0) {
+    return { command: 'setup_register' }
+  }
+
+  if (argv.length > 1) {
+    return null
+  }
+
+  if (argv[0] === '--remove') {
+    return { command: 'setup_remove' }
+  }
+
+  if (argv[0] === '--status') {
+    return { command: 'setup_status' }
+  }
+
+  return null
+}
+
+function printSetupStatus(): void {
+  const status = getSetupStatus()
+
+  console.log('Skill Guard setup status:')
+  console.log(
+    `  Claude directory: ${displayPath(status.claudeDirPath)} ${status.claudeDirExists ? '(found)' : '(missing)'}`
+  )
+  console.log(
+    `  Settings file: ${displayPath(status.settingsPath)} ${status.settingsExists ? '(found)' : '(missing)'}`
+  )
+
+  for (const commandStatus of status.commands) {
+    const state = commandStatus.registered ? 'registered' : 'not registered'
+    console.log(`  ${commandStatus.event}: ${state} (${commandStatus.matchCount})`)
+  }
+}
+
+async function runSetupCommand(args: SetupCommandArgs): Promise<number> {
+  if (args.command === 'setup_status') {
+    printSetupStatus()
+    return 0
+  }
+
+  if (args.command === 'setup_register') {
+    const result = registerHooks()
+    if (!result.ok) {
+      console.error(`Claude directory not found: ${displayPath(result.status.claudeDirPath)}`)
+      return 1
+    }
+
+    if (result.action === 'already_registered') {
+      console.log('Skill Guard hooks are already registered.')
+      return 0
+    }
+
+    console.log(`Registered Skill Guard hooks in ${displayPath(result.status.settingsPath)}.`)
+    return 0
+  }
+
+  const result = removeHooks()
+  if (!result.ok) {
+    console.error(`Claude directory not found: ${displayPath(result.status.claudeDirPath)}`)
+    return 1
+  }
+
+  if (result.removedCount === 0) {
+    console.log('No sapper-ai Skill Guard hooks were registered.')
+    return 0
+  }
+
+  console.log(`Removed ${result.removedCount} sapper-ai Skill Guard hook(s).`)
+  return 0
+}
+
+type GuardCommandArgs =
+  | { command: 'guard_scan' }
+  | { command: 'guard_check' }
+  | { command: 'guard_dismiss'; name: string }
+  | { command: 'guard_rescan' }
+  | { command: 'guard_cache_list' }
+  | { command: 'guard_cache_clear' }
+
+function parseGuardArgs(argv: string[]): GuardCommandArgs | null {
+  const subcommand = argv[0]
+  if (!subcommand) {
+    return null
+  }
+
+  if (subcommand === 'scan') {
+    return argv.length === 1 ? { command: 'guard_scan' } : null
+  }
+
+  if (subcommand === 'check') {
+    return argv.length === 1 ? { command: 'guard_check' } : null
+  }
+
+  if (subcommand === 'dismiss') {
+    if (argv.length !== 2) return null
+    const name = argv[1]?.trim()
+    if (!name) return null
+    return { command: 'guard_dismiss', name }
+  }
+
+  if (subcommand === 'rescan') {
+    return argv.length === 1 ? { command: 'guard_rescan' } : null
+  }
+
+  if (subcommand === 'cache') {
+    if (argv.length !== 2) return null
+    if (argv[1] === 'list') return { command: 'guard_cache_list' }
+    if (argv[1] === 'clear') return { command: 'guard_cache_clear' }
+    return null
+  }
+
+  return null
+}
+
+type GenericGuardMethod = (...args: unknown[]) => unknown
+
+function resolveNamedExport(
+  moduleExports: Record<string, unknown>,
+  names: readonly string[],
+  label: string
+): GenericGuardMethod {
+  for (const name of names) {
+    const candidate = moduleExports[name]
+    if (typeof candidate === 'function') {
+      return candidate as GenericGuardMethod
+    }
+  }
+
+  throw new Error(`Missing export for ${label}`)
+}
+
+type GuardModuleLoader = (modulePath: string) => Promise<Record<string, unknown>>
+
+const defaultGuardModuleLoader: GuardModuleLoader = async (modulePath) => {
+  const fullModulePath = `./guard/${modulePath}`
+  return (await import(fullModulePath)) as Record<string, unknown>
+}
+
+let guardModuleLoader: GuardModuleLoader = defaultGuardModuleLoader
+
+export function __setGuardModuleLoaderForTests(loader: GuardModuleLoader | null): void {
+  guardModuleLoader = loader ?? defaultGuardModuleLoader
+}
+
+async function loadGuardModule(modulePath: string): Promise<Record<string, unknown>> {
+  if (modulePath.includes('..')) {
+    throw new Error(`Invalid guard module path: ${modulePath}`)
+  }
+  return guardModuleLoader(modulePath)
+}
+
+function toExitCode(value: unknown): number {
+  if (typeof value === 'number' && Number.isInteger(value)) {
+    return value
+  }
+
+  if (isObject(value) && typeof value.exitCode === 'number' && Number.isInteger(value.exitCode)) {
+    return value.exitCode
+  }
+
+  return 0
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+async function runGuardScanHook(): Promise<number> {
+  const moduleExports = await loadGuardModule('hooks/guardScan')
+  const hook = resolveNamedExport(moduleExports, ['guardScan', 'runGuardScan', 'default'], 'guard scan hook')
+  const result = await hook()
+  return toExitCode(result)
+}
+
+async function runGuardCheckHook(): Promise<number> {
+  const moduleExports = await loadGuardModule('hooks/guardCheck')
+  const hook = resolveNamedExport(moduleExports, ['guardCheck', 'runGuardCheck', 'default'], 'guard check hook')
+  const result = await hook()
+  return toExitCode(result)
+}
+
+async function createGuardClassInstance(modulePath: string, classNames: readonly string[]): Promise<Record<string, unknown>> {
+  const moduleExports = await loadGuardModule(modulePath)
+  const Constructor = resolveNamedExport(moduleExports, classNames, modulePath)
+  const GuardConstructor = Constructor as unknown as new () => Record<string, unknown>
+  return new GuardConstructor()
+}
+
+async function clearGuardCache(): Promise<void> {
+  const scanCache = await createGuardClassInstance('ScanCache', ['ScanCache', 'default'])
+  const clearMethod = scanCache.clear
+  if (typeof clearMethod !== 'function') {
+    throw new Error('ScanCache.clear() is not available')
+  }
+  await clearMethod.call(scanCache)
+}
+
+async function listGuardCacheEntries(): Promise<unknown[]> {
+  const scanCache = await createGuardClassInstance('ScanCache', ['ScanCache', 'default'])
+  const listMethod = scanCache.list
+  if (typeof listMethod !== 'function') {
+    throw new Error('ScanCache.list() is not available')
+  }
+
+  const listResult = await listMethod.call(scanCache)
+  return Array.isArray(listResult) ? listResult : []
+}
+
+async function dismissGuardWarning(name: string): Promise<unknown> {
+  const warningStore = await createGuardClassInstance('WarningStore', ['WarningStore', 'default'])
+  const dismissMethod = warningStore.dismiss
+  if (typeof dismissMethod !== 'function') {
+    throw new Error('WarningStore.dismiss() is not available')
+  }
+
+  return dismissMethod.call(warningStore, name)
+}
+
+function printGuardCacheList(entries: unknown[]): void {
+  if (entries.length === 0) {
+    console.log('Guard cache is empty.')
+    return
+  }
+
+  console.log('Guard cache entries:')
+  for (const entry of entries) {
+    if (!isObject(entry)) {
+      console.log(`  - ${String(entry)}`)
+      continue
+    }
+
+    const nestedEntry = isObject(entry.entry) ? entry.entry : undefined
+    const pathValue =
+      typeof entry.path === 'string'
+        ? entry.path
+        : nestedEntry && typeof nestedEntry.path === 'string'
+          ? nestedEntry.path
+          : undefined
+    const skillName =
+      typeof entry.skillName === 'string'
+        ? entry.skillName
+        : nestedEntry && typeof nestedEntry.skillName === 'string'
+          ? nestedEntry.skillName
+          : undefined
+    const path = typeof pathValue === 'string' ? displayPath(pathValue) : undefined
+    const hash = typeof entry.contentHash === 'string' ? entry.contentHash.slice(0, 12) : undefined
+    const display = [skillName, path, hash].filter(Boolean).join(' | ')
+    if (display.length > 0) {
+      console.log(`  - ${display}`)
+      continue
+    }
+
+    console.log(`  - ${JSON.stringify(entry)}`)
+  }
+}
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+async function runGuardCommand(args: GuardCommandArgs): Promise<number> {
+  try {
+    if (args.command === 'guard_scan') {
+      return runGuardScanHook()
+    }
+
+    if (args.command === 'guard_check') {
+      return runGuardCheckHook()
+    }
+
+    if (args.command === 'guard_dismiss') {
+      await dismissGuardWarning(args.name)
+      console.log(`Dismissed warning for "${args.name}".`)
+      return 0
+    }
+
+    if (args.command === 'guard_rescan') {
+      await clearGuardCache()
+      console.log('Guard cache cleared.')
+      return runGuardScanHook()
+    }
+
+    if (args.command === 'guard_cache_list') {
+      const entries = await listGuardCacheEntries()
+      printGuardCacheList(entries)
+      return 0
+    }
+
+    await clearGuardCache()
+    console.log('Guard cache cleared.')
+    return 0
+  } catch (error) {
+    console.error(`Guard command failed: ${toErrorMessage(error)}`)
+    return 1
   }
 }
 

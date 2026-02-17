@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
 export async function readFileIfExists(filePath: string): Promise<string | null> {
@@ -49,5 +49,10 @@ export async function atomicWriteFile(
   const tmpPath = join(dir, tmpName)
 
   await writeFile(tmpPath, content, { encoding: 'utf8', mode: options.mode })
-  await rename(tmpPath, filePath)
+  try {
+    await rename(tmpPath, filePath)
+  } catch (error) {
+    await unlink(tmpPath).catch(() => {})
+    throw error
+  }
 }
