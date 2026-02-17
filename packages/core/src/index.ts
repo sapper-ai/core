@@ -23,6 +23,7 @@ export type { QuarantineRecord } from './quarantine/QuarantineManager'
 export { ThreatIntelStore } from './intel/ThreatIntelStore'
 export { buildMatchListFromIntel } from './intel/ThreatIntelStore'
 export { FindingScorer } from './adversary/FindingScorer'
+export { SkillParser } from './parsers/SkillParser'
 export type {
   IntelMatchList,
   ThreatIntelEntry,
@@ -30,6 +31,7 @@ export type {
   ThreatIntelSyncResult,
   ThreatIndicatorType,
 } from './intel/ThreatIntelStore'
+export type { ParsedSkill } from './parsers/SkillParser'
 
 export {
   buildEntryName,

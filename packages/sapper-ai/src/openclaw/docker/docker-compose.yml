@@ -1,0 +1,65 @@
+services:
+  proxy:
+    image: mitmproxy/mitmproxy:latest
+    command:
+      - sh
+      - -lc
+      - >-
+        mitmdump --set block_global=false --set flow_detail=3
+        2>&1 | tee /captures/traffic.log
+    volumes:
+      - captures:/captures
+      - proxy-ca:/home/mitmproxy/.mitmproxy
+    networks:
+      - isolated
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    restart: "no"
+
+  openclaw:
+    image: sapper-openclaw-test:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - proxy
+    hostname: ${CONTAINER_HOSTNAME:-users-macbook}
+    environment:
+      HTTP_PROXY: http://proxy:8080
+      HTTPS_PROXY: http://proxy:8080
+      NO_PROXY: localhost,127.0.0.1,proxy
+      NODE_EXTRA_CA_CERTS: /proxy-ca/mitmproxy-ca-cert.pem
+      TARGET_SKILL_PATH: /skills/target.md
+    env_file:
+      - ${HONEYTOKEN_ENV_FILE}
+    volumes:
+      - ${TARGET_SKILL_PATH}:/skills/target.md:ro
+      - ${PERSONA_ROOT_PATH}:/home/analyst
+      - captures:/captures
+      - proxy-ca:/proxy-ca:ro
+    working_dir: /home/analyst
+    networks:
+      - isolated
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /run:size=32m,mode=755
+    restart: "no"
+
+networks:
+  isolated:
+    driver: bridge
+    internal: true
+
+volumes:
+  captures:
+  proxy-ca:

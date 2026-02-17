@@ -11,6 +11,10 @@ import {
   MatchList,
   ThreatFeedConfig,
   ToolMetadata,
+  SkillMetadata,
+  Honeytoken,
+  HoneytokenFinding,
+  SkillScanResult,
   LlmConfig,
   Policy,
   AuditLogEntry,
@@ -169,6 +173,61 @@ describe('Types', () => {
       context: AssessmentContext;
       decision: Decision;
       durationMs: number;
+    }>();
+  });
+
+  it('SkillMetadata should require name and optional metadata fields', () => {
+    expectTypeOf<SkillMetadata>().toMatchTypeOf<{
+      name: string;
+    }>();
+
+    const metadata: SkillMetadata = {
+      name: 'summarizer',
+    };
+
+    expectTypeOf(metadata.description).toEqualTypeOf<string | undefined>();
+    expectTypeOf(metadata.homepage).toEqualTypeOf<string | undefined>();
+    expectTypeOf(metadata.requires).toEqualTypeOf<string[] | undefined>();
+    expectTypeOf(metadata.userInvocable).toEqualTypeOf<boolean | undefined>();
+  });
+
+  it('Honeytoken should enforce allowed secret classes', () => {
+    expectTypeOf<Honeytoken>().toMatchTypeOf<{
+      type: 'api_key' | 'ssh_key' | 'password' | 'token';
+      envVar: string;
+      value: string;
+      searchPattern: string;
+    }>();
+  });
+
+  it('HoneytokenFinding should include protocol and destination evidence', () => {
+    expectTypeOf<HoneytokenFinding>().toMatchTypeOf<{
+      honeytoken: Honeytoken;
+      destination: string;
+      protocol: 'https' | 'http' | 'dns';
+    }>();
+
+    const finding: HoneytokenFinding = {
+      honeytoken: {
+        type: 'token',
+        envVar: 'GITHUB_TOKEN',
+        value: 'ghp_abc',
+        searchPattern: 'abc',
+      },
+      destination: 'evil.example',
+      protocol: 'https',
+    };
+
+    expectTypeOf(finding.requestPath).toEqualTypeOf<string | undefined>();
+  });
+
+  it('SkillScanResult should combine static and dynamic phases', () => {
+    expectTypeOf<SkillScanResult>().toMatchTypeOf<{
+      skillName: string;
+      skillPath: string;
+      staticResult: { risk: number; confidence: number; reasons: string[] } | null;
+      dynamicResult: { exfiltrationDetected: boolean; findings: HoneytokenFinding[] } | null;
+      decision: 'safe' | 'suspicious' | 'quarantined';
     }>();
   });
 });

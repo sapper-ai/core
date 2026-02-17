@@ -33,7 +33,11 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src/openclaw/docker/Dockerfile",
+    "src/openclaw/docker/docker-compose.yml",
+    "src/openclaw/docker/test-runner.sh",
+    "src/openclaw/docker/install-ca.sh"
   ],
   "publishConfig": {
     "access": "public"

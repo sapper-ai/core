@@ -24,6 +24,48 @@ export interface ToolMetadata {
 }
 
 /**
+ * Parsed skill metadata from SKILL.md frontmatter
+ */
+export interface SkillMetadata {
+  name: string;
+  description?: string;
+  homepage?: string;
+  requires?: string[];
+  userInvocable?: boolean;
+}
+
+/**
+ * Realistic secret-like value injected for exfiltration testing
+ */
+export interface Honeytoken {
+  type: 'api_key' | 'ssh_key' | 'password' | 'token';
+  envVar: string;
+  value: string;
+  searchPattern: string;
+}
+
+/**
+ * Evidence that a honeytoken was observed in outbound traffic
+ */
+export interface HoneytokenFinding {
+  honeytoken: Honeytoken;
+  destination: string;
+  protocol: 'https' | 'http' | 'dns';
+  requestPath?: string;
+}
+
+/**
+ * Consolidated static and dynamic scan result for a skill
+ */
+export interface SkillScanResult {
+  skillName: string;
+  skillPath: string;
+  staticResult: { risk: number; confidence: number; reasons: string[] } | null;
+  dynamicResult: { exfiltrationDetected: boolean; findings: HoneytokenFinding[] } | null;
+  decision: 'safe' | 'suspicious' | 'quarantined';
+}
+
+/**
  * Tool result representation
  */
 export interface ToolResult {
@@ -143,5 +185,4 @@ export interface AuditLogEntry {
   decision: Decision;
   durationMs: number;
 }
-
 

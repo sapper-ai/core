@@ -13,6 +13,8 @@ import { getHardenPlanSummary, runHarden } from './harden'
 import { runQuarantineList, runQuarantineRestore } from './quarantine'
 import { unwrapMcpConfigFile, wrapMcpConfigFile, checkNpxAvailable, resolveInstalledPackageVersion } from './mcp/wrapConfig'
 import { runScan, type ScanOptions } from './scan'
+import { detectOpenClawEnvironment } from './openclaw/detect'
+import { resolveOpenClawPolicy, scanSkills, type OpenClawScanProgressEvent } from './openclaw/scanner'
 import { isCiEnv } from './utils/env'
 
 export async function runCli(argv: string[] = process.argv.slice(2)): Promise<number> {
@@ -55,6 +57,20 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<nu
     }
 
     return scanExitCode
+  }
+
+  if (argv[0] === 'openclaw') {
+    if (argv[1] === '--help' || argv[1] === '-h') {
+      printUsage()
+      return 0
+    }
+
+    if (argv.length > 1) {
+      printUsage()
+      return 1
+    }
+
+    return runOpenClawWizard()
   }
 
   if (argv[0] === 'harden') {
@@ -118,6 +134,7 @@ Usage:
   sapper-ai scan --harden     After scan, offer to apply recommended hardening
   sapper-ai scan --no-open    Skip opening report in browser
   sapper-ai scan --no-save    Skip saving scan results to ~/.sapperai/scans/
+  sapper-ai openclaw          OpenClaw skill security scanner
   sapper-ai harden            Plan recommended setup changes (no writes)
   sapper-ai harden --apply    Apply recommended project changes
   sapper-ai harden --include-system   Include system changes (home directory)
@@ -519,6 +536,168 @@ function displayPath(path: string): string {
   const home = homedir()
   if (path === home) return '~'
   return path.startsWith(home + '/') ? `~/${path.slice(home.length + 1)}` : path
+}
+
+type OpenClawMenuAction = 'scan_static_dynamic' | 'scan_static_only' | 'harden'
+
+function defaultOpenClawAction(dockerAvailable: boolean): OpenClawMenuAction {
+  return dockerAvailable ? 'scan_static_dynamic' : 'scan_static_only'
+}
+
+function isOpenClawPromptEnabled(): boolean {
+  return process.stdout.isTTY === true && process.stdin.isTTY === true && isCiEnv(process.env) !== true
+}
+
+async function promptOpenClawAction(dockerAvailable: boolean): Promise<OpenClawMenuAction> {
+  if (!isOpenClawPromptEnabled()) {
+    return defaultOpenClawAction(dockerAvailable)
+  }
+
+  const choices: Array<{ name: string; value: OpenClawMenuAction }> = []
+
+  if (dockerAvailable) {
+    choices.push({
+      name: 'Scan all skills (static + dynamic analysis)',
+      value: 'scan_static_dynamic',
+    })
+  }
+
+  choices.push({
+    name: 'Scan all skills (static only)',
+    value: 'scan_static_only',
+  })
+  choices.push({
+    name: 'Harden configuration',
+    value: 'harden',
+  })
+
+  return select({
+    message: 'What would you like to do?',
+    choices,
+    default: defaultOpenClawAction(dockerAvailable),
+  })
+}
+
+function createOpenClawProgressHandler(): (event: OpenClawScanProgressEvent) => void {
+  if (process.stdout.isTTY !== true) {
+    return () => {}
+  }
+
+  let previousPhase: OpenClawScanProgressEvent['phase'] | null = null
+
+  return (event: OpenClawScanProgressEvent): void => {
+    const label = event.phase === 'static' ? '  Phase 1 - Static analysis' : '  Phase 2 - Dynamic analysis'
+
+    if (previousPhase !== null && previousPhase !== event.phase) {
+      process.stdout.write('\n')
+    }
+
+    previousPhase = event.phase
+    process.stdout.write(`\r${label}: ${event.completed}/${event.total}`)
+
+    if (event.completed >= event.total) {
+      process.stdout.write('\n')
+    }
+  }
+}
+
+async function runOpenClawWizard(): Promise<number> {
+  console.log('\n  Detecting your environment...\n')
+
+  const environment = await detectOpenClawEnvironment({ cwd: process.cwd() })
+
+  console.log('  Found:')
+  if (environment.installed) {
+    const versionSuffix = environment.version ? ` (v${environment.version})` : ''
+    console.log(`    OpenClaw Gateway${versionSuffix}`)
+  } else {
+    console.log('    OpenClaw Gateway: not detected')
+  }
+
+  if (environment.skillsPaths.length === 0) {
+    console.log('    Skills directory: not detected')
+  } else {
+    console.log(`    Skills directories: ${environment.skillsPaths.length}`)
+    for (const skillPath of environment.skillsPaths) {
+      console.log(`      - ${displayPath(skillPath)}`)
+    }
+  }
+
+  console.log(`    Skills discovered: ${environment.skillCount}`)
+  if (environment.dockerAvailable) {
+    const composeStatus = environment.dockerComposeAvailable ? 'yes' : 'no'
+    console.log(`    Docker: available (compose: ${composeStatus})`)
+  } else {
+    console.log('    Docker: not available')
+  }
+  console.log()
+
+  if (!environment.installed && environment.skillsPaths.length === 0) {
+    console.log('  OpenClaw not detected. Add skills under ~/.openclaw/skills or ./skills and rerun.\n')
+    return 1
+  }
+
+  const action = await promptOpenClawAction(environment.dockerAvailable)
+  if (action === 'harden') {
+    return runHarden({
+      apply: true,
+      includeSystem: true,
+    })
+  }
+
+  if (environment.skillCount === 0) {
+    console.log('  No skill markdown files found in detected paths.\n')
+    return 0
+  }
+
+  const dynamicRequested = action === 'scan_static_dynamic' && environment.dockerAvailable
+  const policy = resolveOpenClawPolicy({ cwd: process.cwd() })
+
+  const scanResult = await scanSkills(environment.skillsPaths, policy, {
+    dynamicAnalysis: dynamicRequested,
+    quarantineOnRisk: true,
+    quarantineDir: process.env.SAPPERAI_QUARANTINE_DIR ?? join(homedir(), '.openclaw', 'quarantine'),
+    onProgress: createOpenClawProgressHandler(),
+  })
+
+  const safeCount = scanResult.results.filter((entry) => entry.decision === 'safe').length
+  const suspiciousCount = scanResult.results.filter((entry) => entry.decision === 'suspicious').length
+  const quarantinedCount = scanResult.results.filter((entry) => entry.decision === 'quarantined').length
+
+  console.log('\n  Results:')
+  console.log(`    ${safeCount} skills safe`)
+  console.log(`    ${suspiciousCount} skills suspicious`)
+  console.log(`    ${quarantinedCount} skills quarantined`)
+
+  if (dynamicRequested && scanResult.dynamicStatus === 'skipped_unconfigured') {
+    console.log('\n  Dynamic analysis requested but no dynamic analyzer is configured yet.')
+    console.log('  Static analysis results are shown.\n')
+  }
+
+  if (dynamicRequested && scanResult.dynamicStatus === 'skipped_unavailable') {
+    console.log('\n  Dynamic analysis requested but the dynamic analyzer is unavailable in this environment.')
+    console.log('  Static analysis results are shown.\n')
+  }
+
+  if (quarantinedCount > 0) {
+    console.log('\n  Quarantined skills:')
+    const quarantined = scanResult.results.filter((entry) => entry.decision === 'quarantined')
+    for (const entry of quarantined) {
+      const reasons = entry.dynamicResult?.findings?.length
+        ? entry.dynamicResult.findings.map((finding) => `${finding.honeytoken.envVar} -> ${finding.destination}`)
+        : entry.staticResult?.reasons ?? []
+      const reasonText = reasons.length > 0 ? reasons[0] : 'High-risk behavior detected'
+      console.log(`    - ${entry.skillName} (${displayPath(entry.skillPath)}): ${reasonText}`)
+    }
+  }
+
+  if (suspiciousCount > 0) {
+    console.log('\n  Suspicious skills require manual review.\n')
+  } else {
+    console.log('\n  Scan complete.\n')
+  }
+
+  return quarantinedCount > 0 || suspiciousCount > 0 ? 1 : 0
 }
 
 async function promptScanScope(cwd: string): Promise<'shallow' | 'deep' | 'system'> {
