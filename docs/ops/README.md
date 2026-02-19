@@ -7,6 +7,7 @@ This directory contains operator-focused runbooks for production workflows.
 - `watch-quarantine.md`: Real-time file monitoring and quarantine operations.
 - `threat-intel.md`: Threat feed and blocklist lifecycle operations.
 - `adversary.md`: Adversary campaign execution and replay workflows.
+- `pre-prod-checklist.md`: Production release blockers and go-live validation checklist.
 
 ## Standard Validation Commands
 
