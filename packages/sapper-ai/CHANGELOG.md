@@ -1,5 +1,11 @@
 # sapper-ai
 
+## 0.8.1
+
+### Patch Changes
+
+- 70a693c: Extract interactive prompt utility and unify TTY/CI checks with structured reason reporting
+
 ## 0.8.0
 
 ### Minor Changes
