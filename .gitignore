@@ -10,6 +10,15 @@ coverage
 .DS_Store
 .env
 *.log
+.mcp.json
+.playwright-mcp/
+.pnpm-store/
+
+# Root images
+/*.png
+
+# Runtime generated
+sapperai-audit.jsonl
 
 # Sensitive Project Files
 docs/reports/
