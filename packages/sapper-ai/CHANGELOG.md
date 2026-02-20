@@ -1,5 +1,11 @@
 # sapper-ai
 
+## 0.8.2
+
+### Patch Changes
+
+- 59a258f: fix: detect symlinked binary name in isDirectExecution so global installs and npx work correctly
+
 ## 0.8.1
 
 ### Patch Changes
