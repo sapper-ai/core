@@ -1,5 +1,13 @@
 # @sapper-ai/types
 
+## 0.4.0
+
+### Minor Changes
+
+- cbb1bc7: feat: add OpenAI organization ID and project ID support
+
+  Add `orgId` and `projectId` optional fields to `LlmConfig` for OpenAI organization and project scoping. When configured via `OPENAI_ORG_ID`/`OPENAI_PROJECT_ID` environment variables or `~/.sapperai/auth.json`, the `OpenAI-Organization` and `OpenAI-Project` headers are included in all OpenAI API requests.
+
 ## 0.3.0
 
 ### Minor Changes
