@@ -98,6 +98,8 @@ export class LlmDetector implements Detector {
         headers: {
           'content-type': 'application/json',
           ...(this.config.apiKey ? { authorization: `Bearer ${this.config.apiKey}` } : {}),
+          ...(this.config.orgId ? { 'openai-organization': this.config.orgId } : {}),
+          ...(this.config.projectId ? { 'openai-project': this.config.projectId } : {}),
         },
         body: JSON.stringify({
           model: this.config.model ?? 'gpt-4.1-mini',

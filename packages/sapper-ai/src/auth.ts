@@ -8,6 +8,8 @@ import { atomicWriteFile, readFileIfExists } from './utils/fs'
 interface AuthFile {
   openai?: {
     apiKey?: string
+    orgId?: string
+    projectId?: string
     savedAt?: string
   }
 }
@@ -37,6 +39,36 @@ export async function loadOpenAiApiKey(options: { env?: NodeJS.ProcessEnv; authP
     return isNonEmptyString(key) ? key.trim() : null
   } catch {
     return null
+  }
+}
+
+export async function loadOpenAiOrgConfig(
+  options: { env?: NodeJS.ProcessEnv; authPath?: string } = {}
+): Promise<{ orgId: string | null; projectId: string | null }> {
+  const env = options.env ?? process.env
+
+  const orgIdFromEnv = env.OPENAI_ORG_ID
+  const projectIdFromEnv = env.OPENAI_PROJECT_ID
+
+  if (isNonEmptyString(orgIdFromEnv) || isNonEmptyString(projectIdFromEnv)) {
+    return {
+      orgId: isNonEmptyString(orgIdFromEnv) ? orgIdFromEnv.trim() : null,
+      projectId: isNonEmptyString(projectIdFromEnv) ? projectIdFromEnv.trim() : null,
+    }
+  }
+
+  const authPath = options.authPath ?? getAuthPath()
+  const raw = await readFileIfExists(authPath)
+  if (raw === null) return { orgId: null, projectId: null }
+
+  try {
+    const parsed = JSON.parse(raw) as AuthFile
+    return {
+      orgId: isNonEmptyString(parsed.openai?.orgId) ? parsed.openai!.orgId!.trim() : null,
+      projectId: isNonEmptyString(parsed.openai?.projectId) ? parsed.openai!.projectId!.trim() : null,
+    }
+  } catch {
+    return { orgId: null, projectId: null }
   }
 }
 

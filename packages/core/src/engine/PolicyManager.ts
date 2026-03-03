@@ -51,6 +51,8 @@ const LlmConfigSchema = z.object({
   apiKey: z.string().optional(),
   endpoint: z.string().optional(),
   model: z.string().optional(),
+  orgId: z.string().optional(),
+  projectId: z.string().optional(),
 })
 
 const PolicySchema = z.object({

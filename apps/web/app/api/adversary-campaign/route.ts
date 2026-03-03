@@ -33,6 +33,8 @@ type DistributionItem = {
 }
 
 const openAiApiKey = process.env.OPENAI_API_KEY?.trim()
+const openAiOrgId = process.env.OPENAI_ORG_ID?.trim()
+const openAiProjectId = process.env.OPENAI_PROJECT_ID?.trim()
 
 const rawPolicy: Policy = {
   mode: 'enforce',
@@ -49,6 +51,8 @@ const rawPolicy: Policy = {
           provider: 'openai' as const,
           apiKey: openAiApiKey,
           model: 'gpt-4.1-mini',
+          ...(openAiOrgId ? { orgId: openAiOrgId } : {}),
+          ...(openAiProjectId ? { projectId: openAiProjectId } : {}),
         },
       }
     : {}),

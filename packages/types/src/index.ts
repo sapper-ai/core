@@ -155,6 +155,8 @@ export interface LlmConfig {
   apiKey?: string;
   endpoint?: string;
   model?: string;
+  orgId?: string;
+  projectId?: string;
 }
 
 /**

@@ -16,7 +16,7 @@ import {
 } from '@sapper-ai/core'
 import type { Decision, LlmConfig, Policy } from '@sapper-ai/types'
 
-import { getAuthPath, loadOpenAiApiKey, promptAndSaveOpenAiApiKey } from './auth'
+import { getAuthPath, loadOpenAiApiKey, loadOpenAiOrgConfig, promptAndSaveOpenAiApiKey } from './auth'
 import { presets } from './presets'
 import { formatInteractivePromptReasons, getInteractivePromptState } from './utils/interactive'
 import { createProgressBar } from './utils/progress'
@@ -512,7 +512,14 @@ export async function runScan(options: ScanOptions = {}): Promise<number> {
       console.log(`${colors.dim}  Key saved to ${displayAuthPath}${colors.reset}`)
       console.log()
     }
-    llmConfig = { provider: 'openai', apiKey, model: 'gpt-4.1-mini' }
+    const { orgId, projectId } = await loadOpenAiOrgConfig()
+    llmConfig = {
+      provider: 'openai',
+      apiKey,
+      model: 'gpt-4.1-mini',
+      ...(orgId ? { orgId } : {}),
+      ...(projectId ? { projectId } : {}),
+    }
   }
 
   const deep = options.system ? true : options.deep !== false
