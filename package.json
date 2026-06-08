@@ -16,7 +16,7 @@
     "lint": "turbo lint"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.29.8",
+    "@changesets/cli": "^2.31.0",
     "@types/node": "^20.0.0",
     "turbo": "^1.10.0",
     "typescript": "^5.3.0",
