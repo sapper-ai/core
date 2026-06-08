@@ -51,7 +51,7 @@ $ npx sapper-ai scan`}</pre>
           Open quickstart
         </Link>
         <a
-          href="https://github.com/sapper-ai/sapperai"
+          href="https://github.com/sapper-ai/core"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="View repository (opens in a new tab)"

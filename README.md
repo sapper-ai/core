@@ -7,11 +7,11 @@ AI agents with tool-calling capabilities face critical security risks:
 - **Command injection**: Dangerous commands executed through tools (rm -rf, SQL injection, etc.)
 - **Data exfiltration**: Secrets leaked through tool arguments or LLM outputs
 
-SapperAI provides **zero-dependency threat detection** with:
-- ✅ **96% detection rate** (48/50 malicious samples blocked)
-- ✅ **Zero false positives** (0/100 benign samples blocked)
-- ✅ **Sub-millisecond latency** (p99: 0.0018ms for rules-only)
-- ✅ **Fail-open design** (availability over security)
+SapperAI provides **zero-dependency, rules-first guardrails** with:
+- ✅ **60+ detector rules** for tool-calling attack patterns
+- ✅ **Policy-based decisions** with allow/block thresholds and overrides
+- ✅ **Audit-friendly reasons** for every security decision
+- ✅ **Configurable fail-open / fail-closed behavior** for different environments
 
 ## Quick Start
 
@@ -44,7 +44,7 @@ npx sapper-ai harden --apply --include-system
 CI-friendly scan (deterministic, no prompts):
 
 ```bash
-npx -y sapper-ai@0.6.0 scan --policy ./sapperai.config.yaml --no-prompt --no-open --no-save
+npx -y sapper-ai@latest scan --policy ./sapperai.config.yaml --no-prompt --no-open --no-save
 ```
 
 ## Architecture
@@ -115,30 +115,28 @@ if (decision.action === 'block') {
 ### Educational Context Suppression
 False positive reduction for documentation/tutorials containing security keywords.
 
-## Performance
+## Verification
 
-Benchmark results (Rules-only pipeline, vitest bench):
+SapperAI keeps the default rules-only path dependency-light and covered by deterministic tests. Before changing detector or policy behavior, run:
 
+```bash
+pnpm test
+pnpm --filter @sapper-ai/core run test:smoke
+pnpm exec tsc -b --noEmit
 ```
-RulesDetector.run - small (50B)     737,726 ops/sec  p99: 0.0018ms
-DecisionEngine.assess - small       391,201 ops/sec  p99: 0.0030ms
-DecisionEngine.assess - large (5KB)  30,785 ops/sec  p99: 0.0424ms
+
+For local benchmark numbers, run:
+
+```bash
+pnpm --filter @sapper-ai/core run bench
 ```
-
-## Verified Metrics (MVP)
-
-- **Test Coverage**: 80 tests (19 types + 50 core + 11 mcp)
-- **Detection Rate**: 96% (48/50 malicious samples)
-- **False Positives**: 0% (0/100 benign samples)
-- **Edge Cases**: 0% false positives (0/20 edge case samples)
-- **Latency**: p99 < 10ms (Rules-only)
 
 ## Installation
 
 ```bash
 # Full monorepo (for development)
-git clone https://github.com/sapper-ai/sapperai.git
-cd sapperai
+git clone https://github.com/sapper-ai/core.git
+cd core
 pnpm install
 pnpm build
 ```
@@ -149,7 +147,7 @@ pnpm build
 # Build all packages
 pnpm build
 
-# Run tests (80 tests across 3 packages)
+# Run tests
 pnpm test
 
 # Run deterministic security smoke tests

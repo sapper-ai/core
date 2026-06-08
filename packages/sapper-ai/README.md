@@ -27,4 +27,4 @@ const decision = await guard.check({ toolName: 'shell', arguments: { cmd: 'ls' }
 | ci | CI/CD pipeline - deterministic, fail closed, no LLM |
 | development | Development mode - permissive, monitor only |
 
-More details: https://github.com/sapper-ai/sapperai#readme
+More details: https://github.com/sapper-ai/core#readme

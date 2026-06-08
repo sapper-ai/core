@@ -58,17 +58,13 @@ console.log(decision.reasons) // ['Detected pattern: rm rf root']
 ### Audit
 - **`AuditLogger`** - Structured logging of security decisions
 
-## Performance
+## Verification
 
-Rules-only pipeline benchmarks (vitest bench):
+The rules-only pipeline is designed to stay dependency-light and easy to test. Run the package checks before changing detector or policy behavior:
 
-```
-RulesDetector.run - small payload (50 bytes)    737,726 ops/sec  p99: 0.0018ms
-DecisionEngine.assess - small payload           391,201 ops/sec  p99: 0.0030ms
-```
-
-Run benchmarks:
 ```bash
+pnpm test
+pnpm run test:smoke
 pnpm run bench
 ```
 

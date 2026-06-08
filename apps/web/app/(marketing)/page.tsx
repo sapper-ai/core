@@ -22,9 +22,8 @@ export default function MarketingHomePage() {
           </div>
 
           <p className="font-mono text-sm text-steel md:text-base">
-            <span className="font-semibold text-ink">96%</span> blocked <span className="px-1.5">·</span>
-            <span className="font-semibold text-ink">0%</span> false positive <span className="px-1.5">·</span> p99{' '}
-            <span className="font-semibold text-ink">0.002ms</span>
+            <span className="font-semibold text-ink">60+</span> rules <span className="px-1.5">·</span>
+            MCP proxy <span className="px-1.5">·</span> deterministic smoke tests
           </p>
 
           <div className="flex flex-wrap items-center gap-3">

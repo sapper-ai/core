@@ -48,7 +48,7 @@ npx sapper-ai harden --apply --include-system
 ## 4) CI에서 쓰는 한 줄 (프롬프트 없이)
 
 ```bash
-npx -y sapper-ai@0.6.0 scan --policy ./sapperai.config.yaml --no-prompt --no-open --no-save
+npx -y sapper-ai@latest scan --policy ./sapperai.config.yaml --no-prompt --no-open --no-save
 ```
 
 ## 5) 격리(Quarantine) 사용
