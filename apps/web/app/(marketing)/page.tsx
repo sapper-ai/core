@@ -22,9 +22,8 @@ export default function MarketingHomePage() {
           </div>
 
           <p className="font-mono text-sm text-steel md:text-base">
-            <span className="font-semibold text-ink">96%</span> blocked <span className="px-1.5">·</span>
-            <span className="font-semibold text-ink">0%</span> false positive <span className="px-1.5">·</span> p99{' '}
-            <span className="font-semibold text-ink">0.002ms</span>
+            <span className="font-semibold text-ink">50+</span> rules <span className="px-1.5">·</span>
+            MCP proxy <span className="px-1.5">·</span> deterministic smoke tests
           </p>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -60,15 +59,14 @@ export default function MarketingHomePage() {
         <article className="rounded-lg border border-border border-l-2 border-l-warn bg-surface p-6 transition-colors hover:border-steel">
           <h3 className="font-heading text-lg font-semibold text-ink">탐지 범위</h3>
           <p className="mt-2 text-sm leading-relaxed text-steel">
-            Prompt Injection, Command Injection, Path Traversal, Data Exfiltration, Code Injection을 포함한 60+
+            Prompt Injection, Command Injection, Path Traversal, Data Exfiltration, Code Injection을 포함한 50+
             룰을 제공합니다.
           </p>
         </article>
         <article className="rounded-lg border border-border border-l-2 border-l-signal bg-surface p-6 transition-colors hover:border-steel">
           <h3 className="font-heading text-lg font-semibold text-ink">연동 방식</h3>
           <p className="mt-2 text-sm leading-relaxed text-steel">
-            MCP Proxy, OpenAI Agents Guardrail, Direct SDK 세 가지로 통합할 수 있습니다. 팀 상황에 따라 최소한의
-            변경으로 적용 가능합니다.
+            Direct SDK와 MCP Proxy 경로로 통합할 수 있습니다. 팀 상황에 따라 최소한의 변경으로 적용 가능합니다.
           </p>
         </article>
       </section>

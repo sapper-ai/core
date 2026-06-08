@@ -11,7 +11,7 @@ pnpm add @sapper-ai/core
 ## Quick Start
 
 ```typescript
-import { RulesDetector, DecisionEngine, Guard } from '@sapper-ai/core'
+import { AuditLogger, DecisionEngine, Guard, RulesDetector } from '@sapper-ai/core'
 import type { Policy } from '@sapper-ai/types'
 
 // 1. Configure policy
@@ -26,14 +26,14 @@ const detector = new RulesDetector()
 const engine = new DecisionEngine([detector])
 
 // 3. Create guard
-const guard = new Guard(engine, policy)
+const auditLogger = new AuditLogger()
+const guard = new Guard(engine, auditLogger, policy)
 
-// 4. Scan tool calls
-const decision = await guard.assessToolCall(
-  'executeCommand',
-  { command: 'rm -rf /' },
-  {}
-)
+// 4. Scan tool calls before execution
+const decision = await guard.preTool({
+  toolName: 'executeCommand',
+  arguments: { command: 'rm -rf /' },
+})
 
 console.log(decision.action) // 'block'
 console.log(decision.risk)   // 0.95
@@ -43,7 +43,7 @@ console.log(decision.reasons) // ['Detected pattern: rm rf root']
 ## API Summary
 
 ### Detectors
-- **`RulesDetector`** - Pattern-based threat detection (60+ patterns)
+- **`RulesDetector`** - Pattern-based threat detection (50+ rules)
 - **`LlmDetector`** - LLM-based detection interface (requires LlmConfig)
 
 ### Engine
@@ -58,17 +58,13 @@ console.log(decision.reasons) // ['Detected pattern: rm rf root']
 ### Audit
 - **`AuditLogger`** - Structured logging of security decisions
 
-## Performance
+## Verification
 
-Rules-only pipeline benchmarks (vitest bench):
+The rules-only pipeline is designed to stay dependency-light and easy to test. Run the package checks before changing detector or policy behavior:
 
-```
-RulesDetector.run - small payload (50 bytes)    737,726 ops/sec  p99: 0.0018ms
-DecisionEngine.assess - small payload           391,201 ops/sec  p99: 0.0030ms
-```
-
-Run benchmarks:
 ```bash
+pnpm test
+pnpm run test:smoke
 pnpm run bench
 ```
 

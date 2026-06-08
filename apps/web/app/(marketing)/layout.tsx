@@ -8,7 +8,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-frost">
       <SiteHeader>
-        <Suspense fallback="1.6k">
+        <Suspense fallback="3">
           <GitHubStars />
         </Suspense>
       </SiteHeader>

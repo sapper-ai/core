@@ -44,7 +44,7 @@ export function SiteHeader({ children }: { children?: ReactNode }) {
           <span className="flex items-center gap-2 leading-none">
             <span className="font-heading">SapperAI</span>
             <span className="rounded-full border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-steel">
-              v0.2.0
+              v0.9.0
             </span>
           </span>
         </Link>
@@ -59,7 +59,7 @@ export function SiteHeader({ children }: { children?: ReactNode }) {
 
         <div className="flex items-center gap-2">
           <a
-            href="https://github.com/sapper-ai/sapperai"
+            href="https://github.com/sapper-ai/core"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="GitHub repository (opens in a new tab)"
@@ -118,7 +118,7 @@ export function SiteHeader({ children }: { children?: ReactNode }) {
               </Link>
             ))}
             <a
-              href="https://github.com/sapper-ai/sapperai"
+              href="https://github.com/sapper-ai/core"
               target="_blank"
               rel="noopener noreferrer"
               onClick={close}

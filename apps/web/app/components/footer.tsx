@@ -7,7 +7,7 @@ export function Footer() {
       </div>
       <div className="flex items-center gap-4 text-sm text-steel">
         <a
-          href="https://github.com/sapper-ai/sapperai"
+          href="https://github.com/sapper-ai/core"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1.5 transition hover:text-ink"

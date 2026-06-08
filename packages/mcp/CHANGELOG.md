@@ -48,10 +48,10 @@
 
 - Initial public release of SapperAI security framework.
 
-  - Rules-based threat detection engine with 60+ patterns
+  - Rules-based threat detection engine with 50+ rules
   - MCP security proxy for wrapping any MCP server
-  - OpenAI Agents SDK guardrails integration
-  - 96% detection rate with zero false positives
+  - Early SDK guardrail integration, later simplified
+  - Historical sample-based detector evaluation notes
 
 ### Patch Changes
 

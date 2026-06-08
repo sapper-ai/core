@@ -1,5 +1,5 @@
-const GITHUB_REPO_API = 'https://api.github.com/repos/sapper-ai/sapperai'
-const DEFAULT_STARS = 1600
+const GITHUB_REPO_API = 'https://api.github.com/repos/sapper-ai/core'
+const DEFAULT_STARS = 3
 const CACHE_SECONDS = 3600
 
 function formatStarCount(stars: number): string {
